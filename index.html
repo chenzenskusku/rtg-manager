@@ -283,6 +283,77 @@ window.closePretModal = function() {};
   </div>
 </div>
 
+<!-- MODAL CREER JOUEUR -->
+<div class="modal-overlay" id="creerJoueurModal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header" style="border-bottom:2px solid #ffd600">
+      <h3 style="color:#ffd600">⭐ Créer un joueur</h3>
+      <button class="modal-close" onclick="document.getElementById('creerJoueurModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Prénom</label>
+          <input type="text" id="creerPrenom" class="search-input" style="margin:0" placeholder="Ex: Kylian">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Nom</label>
+          <input type="text" id="creerNom" class="search-input" style="margin:0" placeholder="Ex: Dupont">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Poste principal</label>
+          <select id="creerPoste" class="search-input" style="margin:0">
+            <option value="G">G</option>
+            <option value="DC">DC</option>
+            <option value="DD">DD</option>
+            <option value="DG">DG</option>
+            <option value="MDC">MDC</option>
+            <option value="MC">MC</option>
+            <option value="MOC">MOC</option>
+            <option value="MD">MD</option>
+            <option value="MG">MG</option>
+            <option value="AD">AD</option>
+            <option value="AG">AG</option>
+            <option value="BU">BU</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Postes secondaires</label>
+          <input type="text" id="creerPos2" class="search-input" style="margin:0" placeholder="Ex: MC, MOC">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Âge</label>
+          <input type="number" id="creerAge" class="search-input" style="margin:0" min="15" max="45" placeholder="Ex: 21">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Général</label>
+          <input type="number" id="creerGeneral" class="search-input" style="margin:0" min="50" max="99" placeholder="Ex: 72">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Potentiel</label>
+          <input type="number" id="creerPotentiel" class="search-input" style="margin:0" min="50" max="99" placeholder="Ex: 85">
+        </div>
+      </div>
+      <div style="border-top:1px solid #222;padding-top:12px">
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Durée du contrat</label>
+        <select id="creerContrat" class="search-input" style="margin:0">
+          <option value="1">1 an</option>
+          <option value="2">2 ans</option>
+          <option value="3">3 ans</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('creerJoueurModal').classList.remove('open')">Annuler</button>
+        <button class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#b8860b,#ffd600);color:#000" onclick="confirmerCreerJoueur()">⭐ Créer et ajouter</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONTRAT -->
 <div class="modal-overlay" id="contratModal">
   <div class="modal" style="width:380px">
@@ -1907,6 +1978,7 @@ function renderClubJoueur(name) {
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <p class="section-title" style="margin:0">Effectif (${effectif.length} joueurs)</p>
       <button class="btn btn-secondary btn-sm" onclick="openAddJoueurModal('${name}')">➕ Ajouter un joueur</button>
+      <button class="btn btn-secondary btn-sm" onclick="openCreerJoueurModal('${name}')" style="color:#ffd600;border-color:#ffd600">⭐ Créer un joueur</button>
     </div>
 
     ${effectif.length === 0 ? `<div class="empty-state" style="padding:40px"><div class="icon">👥</div><p>Aucun joueur dans l'effectif</p></div>` : `
@@ -1926,6 +1998,7 @@ function renderJoueurRow(clubName, p, idx) {
 
   let nomDisplay = p.nom;
   let nomClass = '';
+  const isCustom = p._custom === true;
   if (isPretOut) { nomClass = 'pret-out'; }
   if (isPretIn) { nomClass = 'pret-in'; }
 
@@ -1938,7 +2011,7 @@ function renderJoueurRow(clubName, p, idx) {
   const rowStyle = contratExpire ? 'background:rgba(232,0,30,0.08);border-left:3px solid #e8001e;' : '';
   return `<tr style="${rowStyle}">
     <td>
-      <span class="${nomClass}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:${contratExpire?'#e8001e':'#f0f0f0'}">${nomDisplay}</span>
+      <span class="${nomClass}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:${contratExpire?'#e8001e':isCustom?'#ffd600':'#f0f0f0'}">${nomDisplay}</span>${isCustom ? '<span style="font-size:10px;background:rgba(255,214,0,0.15);color:#ffd600;border:1px solid #ffd600;border-radius:3px;padding:1px 5px;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">CRÉÉ</span>' : ''}
       ${contratExpire ? '<span style="font-size:10px;background:#e8001e;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;font-weight:700">CONTRAT EXPIRÉ</span>' : ''}
       ${pretBadge}${pretInBadge}${optionBadge}
     </td>
@@ -3162,6 +3235,62 @@ function prolongerJoueur(clubName, idx, valeur) {
     <p style="margin-top:4px;color:#666">Budget disponible : ${formatValeur(budget)}</p>
     ${cout > budget ? '<p style="color:#e8001e;margin-top:6px;font-weight:600">⚠️ Budget insuffisant !</p>' : ''}`;
   document.getElementById('contratModifModal').classList.add('open');
+}
+
+
+// =================== JOUEUR CRÉÉ ===================
+let creerJoueurClub = null;
+
+function openCreerJoueurModal(clubName) {
+  creerJoueurClub = clubName;
+  // Reset fields
+  ['creerPrenom','creerNom','creerPos2','creerAge','creerGeneral','creerPotentiel'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('creerPoste').value = 'BU';
+  document.getElementById('creerContrat').value = '1';
+  document.getElementById('creerJoueurModal').classList.add('open');
+}
+
+function confirmerCreerJoueur() {
+  const prenom = document.getElementById('creerPrenom').value.trim();
+  const nom = document.getElementById('creerNom').value.trim();
+  const poste = document.getElementById('creerPoste').value;
+  const pos2 = document.getElementById('creerPos2').value.trim();
+  const age = parseInt(document.getElementById('creerAge').value);
+  const general = parseInt(document.getElementById('creerGeneral').value);
+  const potentiel = parseInt(document.getElementById('creerPotentiel').value);
+  const contrat = parseInt(document.getElementById('creerContrat').value);
+
+  if (!prenom || !nom) { alert('Veuillez entrer un prénom et un nom.'); return; }
+  if (isNaN(age) || age < 15 || age > 45) { alert('Âge invalide (15-45).'); return; }
+  if (isNaN(general) || general < 50 || general > 99) { alert('Général invalide (50-99).'); return; }
+  if (isNaN(potentiel) || potentiel < general || potentiel > 99) { alert('Potentiel invalide (doit être ≥ général).'); return; }
+  if (!creerJoueurClub) return;
+
+  const nomComplet = prenom + ' ' + nom;
+  const club = CLUBS_JOUEURS[creerJoueurClub];
+  if (club.effectif.find(p => p.nom === nomComplet)) { alert(nomComplet + ' est déjà dans l\'effectif.'); return; }
+
+  const valeur = calcValeur(general, age, potentiel);
+
+  club.effectif.push({
+    nom: nomComplet,
+    poste: poste,
+    pos2: pos2,
+    age: age,
+    overall: general,
+    potentiel: potentiel,
+    valeur: valeur,
+    contrat: contrat,
+    pret: null,
+    _pretFrom: null,
+    _custom: true
+  });
+
+  saveClubsJoueurs();
+  document.getElementById('creerJoueurModal').classList.remove('open');
+  renderClubJoueur(creerJoueurClub);
 }
 
 // =================== CONTRATS ===================
