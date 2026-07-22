@@ -152,6 +152,7 @@ window.closePretModal = function() {};
   <div class="main-nav-tab active" id="navtab-clubs" onclick="switchMainView('clubs')">⚽ Clubs</div>
   <div class="main-nav-tab" id="navtab-mercato" onclick="switchMainView('mercato')">💼 Mercato</div>
   <div class="main-nav-tab" id="navtab-historique" onclick="switchMainView('historique')">📜 Historique</div>
+  <div class="main-nav-tab" id="navtab-totw" onclick="switchMainView('totw')">🏆 TOTW</div>
   <div style="margin-left:auto;padding:8px 16px">
     <button onclick="ouvrirFinSaison()" style="background:linear-gradient(135deg,#e8001e,#a00010);border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:8px 16px;border-radius:6px;cursor:pointer;transition:opacity 0.15s" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">🏁 Fin de saison</button>
   </div>
@@ -270,6 +271,17 @@ window.closePretModal = function() {};
   </div>
 </div>
 
+<!-- VIEW TOTW -->
+<div class="view-section" id="view-totw" style="padding:32px">
+  <div style="max-width:1100px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+      <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase">🏆 Team of the Week</h2>
+      <button class="btn btn-primary" onclick="ouvrirCreerTOTW()">➕ Créer une TOTW</button>
+    </div>
+    <div id="totwContent"></div>
+  </div>
+</div>
+
 <!-- MODAL FIN DE SAISON -->
 <div class="modal-overlay" id="finSaisonModal">
   <div class="modal" style="width:520px">
@@ -279,6 +291,52 @@ window.closePretModal = function() {};
     </div>
     <div class="modal-body" id="finSaisonModalBody" style="display:flex;flex-direction:column;gap:16px">
       <!-- Content injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CREER TOTW -->
+<div class="modal-overlay" id="creerTotwModal">
+  <div class="modal" style="width:680px;max-height:85vh">
+    <div class="modal-header" style="border-bottom:2px solid #ffd600">
+      <h3 style="color:#ffd600">🏆 Créer une TOTW</h3>
+      <button class="modal-close" onclick="document.getElementById('creerTotwModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;max-height:calc(85vh - 80px)">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Saison</label>
+          <select id="totwSaison" class="search-input" style="margin:0" onchange="updateTotwJournees()">
+            <option value="1">Saison 1</option>
+            <option value="2">Saison 2</option>
+            <option value="3">Saison 3</option>
+            <option value="4">Saison 4</option>
+            <option value="5">Saison 5</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Journée</label>
+          <select id="totwJournee" class="search-input" style="margin:0"></select>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Rechercher un joueur</label>
+        <input type="text" id="totwSearchInput" class="search-input" style="margin:0" placeholder="Nom du joueur..." oninput="searchTotwJoueur(this.value)">
+        <div id="totwSearchResults" style="margin-top:6px;max-height:160px;overflow-y:auto"></div>
+      </div>
+
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:8px">Joueurs sélectionnés (<span id="totwCount">0</span>/14)</label>
+        <div id="totwSelected" style="display:flex;flex-wrap:wrap;gap:6px;min-height:40px;background:#111;border:1px solid #222;border-radius:6px;padding:10px">
+          <span style="color:#444;font-size:13px">Aucun joueur sélectionné</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid #222">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('creerTotwModal').classList.remove('open')">Annuler</button>
+        <button class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#b8860b,#ffd600);color:#000" onclick="confirmerCreerTOTW()">🏆 Enregistrer la TOTW</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2011,7 +2069,7 @@ function renderJoueurRow(clubName, p, idx) {
   const rowStyle = contratExpire ? 'background:rgba(232,0,30,0.08);border-left:3px solid #e8001e;' : '';
   return `<tr style="${rowStyle}">
     <td>
-      <span class="${nomClass}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:${contratExpire?'#e8001e':isCustom?'#ffd600':'#f0f0f0'}">${nomDisplay}</span>${isCustom ? '<span style="font-size:10px;background:rgba(255,214,0,0.15);color:#ffd600;border:1px solid #ffd600;border-radius:3px;padding:1px 5px;margin-left:6px;font-family:\'Barlow Condensed\',sans-serif;font-weight:700">CRÉÉ</span>' : ''}
+      <span class="${nomClass}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:${contratExpire?'#e8001e':isCustom?'#ffd600':'#f0f0f0'}">${nomDisplay}</span>${isCustom ? '<span style="font-size:14px;margin-left:5px">⭐</span>' : ''}
       ${contratExpire ? '<span style="font-size:10px;background:#e8001e;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;font-weight:700">CONTRAT EXPIRÉ</span>' : ''}
       ${pretBadge}${pretInBadge}${optionBadge}
     </td>
@@ -2406,16 +2464,7 @@ function calcValeur(ovr, age, potentiel) {
 
 
 
-function switchMainView(view) {
-  document.querySelectorAll('.main-nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-  const navTab = document.getElementById('navtab-'+view);
-  const viewEl = document.getElementById('view-'+view);
-  if (navTab) navTab.classList.add('active');
-  if (viewEl) viewEl.classList.add('active');
-  if (view === 'historique') renderHistorique();
-  if (view === 'mercato') initMercatoSelects();
-}
+
 
 // =================== MERCATO IA ===================
 // =================== MERCATO IA ===================
@@ -3490,6 +3539,211 @@ function saveNegoLog(type, log) {
   else data.push(log);
   localStorage.setItem(key, JSON.stringify(data));
 }
+
+
+// =================== TOTW ===================
+let totwSelectedPlayers = [];
+
+function switchMainView(view) {
+  document.querySelectorAll('.main-nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+  const navTab = document.getElementById('navtab-'+view);
+  const viewEl = document.getElementById('view-'+view);
+  if (navTab) navTab.classList.add('active');
+  if (viewEl) viewEl.classList.add('active');
+  if (view === 'historique') renderHistorique();
+  if (view === 'mercato') initMercatoSelects();
+  if (view === 'totw') renderTOTW();
+}
+
+function getTOTWData() {
+  return JSON.parse(localStorage.getItem('rtg_totw') || '[]');
+}
+
+function saveTOTWData(data) {
+  localStorage.setItem('rtg_totw', JSON.stringify(data));
+}
+
+function getAllPlayers() {
+  const players = [];
+  // Clubs joueurs
+  Object.keys(CLUBS_JOUEURS).forEach(club => {
+    CLUBS_JOUEURS[club].effectif.forEach(p => {
+      if (!p._pretFrom) players.push({ nom: p.nom, club, poste: p.poste, overall: p.overall, custom: p._custom });
+    });
+  });
+  // Clubs IA
+  Object.keys(CLUBS_DATA).forEach(club => {
+    getEffectif(club).forEach(p => {
+      players.push({ nom: p.nom, club, poste: p.poste, overall: getOvr(club, p.nom, p.overall), custom: false });
+    });
+  });
+  return players;
+}
+
+function ouvrirCreerTOTW() {
+  totwSelectedPlayers = [];
+  document.getElementById('totwSearchInput').value = '';
+  document.getElementById('totwSearchResults').innerHTML = '';
+  updateTotwJournees();
+  renderTotwSelected();
+  document.getElementById('creerTotwModal').classList.add('open');
+}
+
+function updateTotwJournees() {
+  const saison = document.getElementById('totwSaison').value;
+  const data = getTOTWData();
+  const existing = data.filter(t => t.saison == saison).map(t => t.journee);
+  const sel = document.getElementById('totwJournee');
+  sel.innerHTML = '';
+  for (let j = 1; j <= 17; j++) {
+    if (!existing.includes(j)) {
+      const opt = document.createElement('option');
+      opt.value = j;
+      opt.textContent = 'J' + j;
+      sel.appendChild(opt);
+    }
+  }
+  if (sel.options.length === 0) {
+    sel.innerHTML = '<option value="">Toutes les journées créées</option>';
+  }
+}
+
+function searchTotwJoueur(query) {
+  const q = query.trim().toLowerCase();
+  const resultsDiv = document.getElementById('totwSearchResults');
+  if (q.length < 2) { resultsDiv.innerHTML = ''; return; }
+
+  const allPlayers = getAllPlayers();
+  const results = allPlayers.filter(p =>
+    p.nom.toLowerCase().includes(q) &&
+    !totwSelectedPlayers.find(sp => sp.nom === p.nom)
+  ).slice(0, 12);
+
+  if (results.length === 0) { resultsDiv.innerHTML = '<div class="no-results">Aucun joueur trouvé</div>'; return; }
+
+  resultsDiv.innerHTML = '<div class="search-results">' + results.map(p =>
+    `<div class="search-result-item" onclick="addTotwPlayer(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div>
+        <div class="player-name" style="color:${p.custom?'#ffd600':'#f0f0f0'}">${p.nom}${p.custom?' ⭐':''}</div>
+        <div class="player-meta">${p.poste} · ${p.club}</div>
+      </div>
+      <span class="player-ovr ${ovrClass(p.overall)}" style="background:none">${p.overall}</span>
+    </div>`
+  ).join('') + '</div>';
+}
+
+function addTotwPlayer(player) {
+  if (totwSelectedPlayers.length >= 14) { alert('Maximum 14 joueurs par TOTW.'); return; }
+  if (totwSelectedPlayers.find(p => p.nom === player.nom)) return;
+  totwSelectedPlayers.push(player);
+  document.getElementById('totwSearchInput').value = '';
+  document.getElementById('totwSearchResults').innerHTML = '';
+  renderTotwSelected();
+}
+
+function removeTotwPlayer(nom) {
+  totwSelectedPlayers = totwSelectedPlayers.filter(p => p.nom !== nom);
+  renderTotwSelected();
+}
+
+function renderTotwSelected() {
+  const div = document.getElementById('totwSelected');
+  const count = document.getElementById('totwCount');
+  count.textContent = totwSelectedPlayers.length;
+  if (totwSelectedPlayers.length === 0) {
+    div.innerHTML = '<span style="color:#444;font-size:13px">Aucun joueur sélectionné</span>';
+    return;
+  }
+  div.innerHTML = totwSelectedPlayers.map(p =>
+    `<div style="display:inline-flex;align-items:center;gap:6px;background:#1a1a1a;border:1px solid ${p.custom?'#ffd600':'#333'};border-radius:20px;padding:4px 10px 4px 8px">
+      <span class="ovr-badge ${ovrClass(p.overall)}" style="width:24px;height:24px;font-size:12px">${p.overall}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:${p.custom?'#ffd600':'#f0f0f0'}">${p.nom}${p.custom?' ⭐':''}</span>
+      <span style="font-size:11px;color:#555">${p.poste}</span>
+      <button onclick="removeTotwPlayer('${p.nom.replace(/'/g,"\\'")}')" style="background:none;border:none;color:#555;cursor:pointer;font-size:14px;padding:0;line-height:1">✕</button>
+    </div>`
+  ).join('');
+}
+
+function confirmerCreerTOTW() {
+  if (totwSelectedPlayers.length !== 14) { alert('Vous devez sélectionner exactement 14 joueurs.'); return; }
+  const saison = parseInt(document.getElementById('totwSaison').value);
+  const journee = parseInt(document.getElementById('totwJournee').value);
+  if (!journee) { alert('Aucune journée disponible pour cette saison.'); return; }
+
+  const data = getTOTWData();
+  if (data.find(t => t.saison === saison && t.journee === journee)) {
+    alert('Une TOTW existe déjà pour cette journée.'); return;
+  }
+
+  data.push({ saison, journee, date: new Date().toISOString(), joueurs: [...totwSelectedPlayers] });
+  saveTOTWData(data);
+  document.getElementById('creerTotwModal').classList.remove('open');
+  renderTOTW();
+}
+
+function renderTOTW() {
+  const data = getTOTWData();
+  const div = document.getElementById('totwContent');
+  if (!div) return;
+
+  if (data.length === 0) {
+    div.innerHTML = '<div class="empty-state" style="padding:60px"><div class="icon">🏆</div><p>Aucune TOTW créée pour le moment.</p></div>';
+    return;
+  }
+
+  // Group by saison
+  const bySaison = {};
+  data.forEach(t => {
+    if (!bySaison[t.saison]) bySaison[t.saison] = [];
+    bySaison[t.saison].push(t);
+  });
+
+  div.innerHTML = Object.keys(bySaison).sort((a,b) => b-a).map(saison => {
+    const totws = bySaison[saison].sort((a,b) => a.journee - b.journee);
+    const cards = totws.map(t => `
+      <div style="background:#111;border:1px solid #222;border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color 0.15s" onmouseover="this.style.borderColor='#ffd600'" onmouseout="this.style.borderColor='#222'" onclick="toggleTotwDetail('totw-s${t.saison}-j${t.journee}')">
+        <div style="background:linear-gradient(135deg,#1a1500,#2a2000);padding:16px;text-align:center;border-bottom:1px solid #333">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:#ffd600;letter-spacing:1px">TOTW</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:32px;color:#fff;line-height:1">J${t.journee}</div>
+          <div style="font-size:11px;color:#666;margin-top:4px">${new Date(t.date).toLocaleDateString('fr-FR')}</div>
+        </div>
+        <div id="totw-s${t.saison}-j${t.journee}" style="display:none;padding:12px">
+          ${t.joueurs.map(p => `
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1a1a1a">
+              <span class="ovr-badge ${ovrClass(p.overall)}" style="width:28px;height:28px;font-size:13px;flex-shrink:0">${p.overall}</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:${p.custom?'#ffd600':'#f0f0f0'};flex:1">${p.nom}${p.custom?' ⭐':''}</span>
+              <span style="font-size:11px;color:#555">${p.poste}</span>
+              <span style="font-size:11px;color:#444">${p.club}</span>
+            </div>`).join('')}
+          <button class="trash-btn" style="margin-top:8px" onclick="event.stopPropagation();deleteTOTW(${t.saison},${t.journee})">🗑️ Supprimer</button>
+        </div>
+      </div>`).join('');
+
+    return `<div style="margin-bottom:32px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <h3 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;letter-spacing:1px;text-transform:uppercase;color:#ffd600">Saison ${saison}</h3>
+        <span style="font-size:12px;color:#444">${totws.length}/17 journées</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+        ${cards}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleTotwDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function deleteTOTW(saison, journee) {
+  if (!confirm('Supprimer la TOTW J' + journee + ' Saison ' + saison + ' ?')) return;
+  const data = getTOTWData().filter(t => !(t.saison === saison && t.journee === journee));
+  saveTOTWData(data);
+  renderTOTW();
+}
+
 
 // --- INIT ---
 // Groq key loaded from Supabase
