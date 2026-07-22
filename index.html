@@ -178,10 +178,18 @@ window.closePretModal = function() {};
 
 
 <div class="view-section" id="view-historique" style="padding:32px">
-  <div style="max-width:900px;margin:0 auto">
-    <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">📜 Historique des transferts</h2>
-    <p style="color:var(--text-muted);font-size:14px;margin-bottom:28px">Tous les transferts conclus dans la fantasy ligue.</p>
-    <div id="historiqueList"></div>
+  <div style="max-width:1000px;margin:0 auto">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px">📜 Historique</h2>
+
+    <div style="display:flex;gap:6px;margin-bottom:24px;border-bottom:1px solid #222;padding-bottom:0">
+      <div class="tab active" id="htab-transferts" onclick="switchHistoTab('transferts')">🔄 Transferts joueurs</div>
+      <div class="tab" id="htab-ventes" onclick="switchHistoTab('ventes')">📤 Ventes IA</div>
+      <div class="tab" id="htab-achats" onclick="switchHistoTab('achats')">📥 Achats IA</div>
+    </div>
+
+    <div id="hcontent-transferts"><div id="historiqueList"></div></div>
+    <div id="hcontent-ventes" style="display:none"><div id="historiqueVentesList"></div></div>
+    <div id="hcontent-achats" style="display:none"><div id="historiqueAchatsList"></div></div>
   </div>
 </div>
 
@@ -2396,6 +2404,10 @@ async function lancerNegociationVente() {
   venteNegRound = 0;
   venteNegOffreIA = 0;
   venteDerniereContrePrix = 0;
+  // Init nego log
+  window.currentVenteLog = { _id: Date.now()+'_v', date: new Date().toISOString(), joueur: joueur.nom, clubSource: clubNom, clubCible: '?', statut: 'en_cours', montantFinal: null, etapes: [] };
+  window.currentVenteLog.etapes.push({ type: 'vendeur', label: 'Prix demandé', texte: clubNom + ' met ' + joueur.nom + ' en vente', montant: Math.round(prixM * 1000000) });
+  saveNegoLog('ventes', window.currentVenteLog);
 
   const zone = document.getElementById('venteNegociationZone');
   zone.innerHTML = '<div class="loading"><div class="spinner"></div> Recherche d\'un club intéressé...</div>';
@@ -2485,6 +2497,19 @@ Réponds UNIQUEMENT en JSON :
     // Sécurité : ne jamais proposer moins que l'offre précédente
     if (isRenegociation && parsed.montant < venteNegOffreIA) parsed.montant = Math.round(venteNegOffreIA * 1.03);
     venteNegOffreIA = parsed.montant;
+    // Log
+    if (window.currentVenteLog) {
+      if (parsed.decision === 'pas_interesse') {
+        window.currentVenteLog.etapes.push({ type: 'rupture', label: 'Refus', texte: 'Aucun club intéressé : "' + parsed.message + '"', montant: null });
+        window.currentVenteLog.statut = 'refus';
+      } else if (parsed.decision === 'accepte') {
+        window.currentVenteLog.etapes.push({ type: 'accord', label: 'Accepté', texte: 'Prix accepté directement', montant: prixDemande });
+        window.currentVenteLog.statut = 'conclu'; window.currentVenteLog.montantFinal = prixDemande;
+      } else {
+        window.currentVenteLog.etapes.push({ type: 'club', label: 'Offre club', texte: '"' + parsed.message + '"', montant: parsed.montant });
+      }
+      saveNegoLog('ventes', window.currentVenteLog);
+    }
 
     zone.innerHTML = `
       <div class="result-box">
@@ -2532,7 +2557,11 @@ async function submitRenegoVente() {
     return;
   }
 
-  venteDerniereContrePrix = montant; // Mettre à jour la dernière contre-offre
+  venteDerniereContrePrix = montant;
+  if (window.currentVenteLog) {
+    window.currentVenteLog.etapes.push({ type: 'vendeur', label: 'Contre-offre', texte: 'Le vendeur propose', montant: montant });
+    saveNegoLog('ventes', window.currentVenteLog);
+  }
   venteNegRound++;
   const zone = document.getElementById('venteNegociationZone');
   zone.innerHTML = '<div class="loading"><div class="spinner"></div> Le club réfléchit à votre contre-offre...</div>';
@@ -2555,6 +2584,11 @@ async function submitRenegoVente() {
   const bonusRound = ecartPct > 0.08 ? venteNegRound * 0.12 : venteNegRound * 0.03;
   const probRupture = Math.min(0.85, 0.15 + ecartPct * 2.0 + bonusRound);
   if ((Math.random() < probRupture && venteNegRound >= 2) || venteNegRound > 3) {
+    if (window.currentVenteLog) {
+      window.currentVenteLog.etapes.push({ type: 'rupture', label: 'Rupture', texte: 'Le club met fin aux négociations après ' + venteNegRound + ' round(s)', montant: null });
+      window.currentVenteLog.statut = 'rupture';
+      saveNegoLog('ventes', window.currentVenteLog);
+    }
     zone.innerHTML = `
       <div class="result-box">
         <div class="result-box-header" style="color:#e8001e">💔 Négociation rompue</div>
@@ -2571,6 +2605,14 @@ async function submitRenegoVente() {
 function accepterVente(montant) {
   const joueur = venteNegJoueur;
   const club = venteNegClub;
+
+  if (window.currentVenteLog) {
+    window.currentVenteLog.etapes.push({ type: 'accord', label: 'Accord', texte: 'Vente conclue', montant: montant });
+    window.currentVenteLog.statut = 'conclu';
+    window.currentVenteLog.montantFinal = montant;
+    saveNegoLog('ventes', window.currentVenteLog);
+    window.currentVenteLog = null;
+  }
 
   // Retirer de l'effectif
   const idx = CLUBS_JOUEURS[club].effectif.findIndex(p => p.nom === joueur.nom && !p._pretFrom);
@@ -2644,6 +2686,7 @@ async function selectAchatJoueur(player, clubActuel) {
   achatNegRound = 0;
   achatNegOffreIA = 0;
   achatDerniereContrePrix = 0;
+  window.currentAchatLog = { _id: Date.now()+'_a', date: new Date().toISOString(), joueur: player.nom, clubSource: clubActuel || 'Libre', clubCible: '', statut: 'en_cours', montantFinal: null, etapes: [] };
 
   document.getElementById('achatJoueurSearch').value = player.nom;
   document.getElementById('achatJoueurResults').innerHTML = '';
@@ -2699,9 +2742,19 @@ Réponds UNIQUEMENT en JSON :
 
     // Sécurité: en renégo, le vendeur ne peut pas remonter AU DESSUS de sa dernière demande
     if (achatNegRound > 0 && parsed.montant > achatNegOffreIA) parsed.montant = Math.round(achatNegOffreIA * 0.97);
-    // Le vendeur ne peut pas descendre sous l'offre de l'acheteur
     if (achatNegRound > 0 && parsed.montant <= achatDerniereContrePrix) parsed.montant = Math.round(achatDerniereContrePrix * 1.03);
     achatNegOffreIA = parsed.montant;
+    // Log
+    if (window.currentAchatLog) {
+      window.currentAchatLog.clubCible = clubNom;
+      if (parsed.decision === 'pas_interesse') {
+        window.currentAchatLog.etapes.push({ type: 'rupture', label: 'Refus', texte: 'Le vendeur refuse de vendre : "' + parsed.message + '"', montant: null });
+        window.currentAchatLog.statut = 'refus';
+      } else {
+        window.currentAchatLog.etapes.push({ type: 'club', label: achatNegRound === 0 ? 'Prix vendeur' : 'Contre-offre vendeur', texte: clubNom + ' : "' + parsed.message + '"', montant: parsed.montant });
+      }
+      saveNegoLog('achats', window.currentAchatLog);
+    }
 
     const isRefus = parsed.decision === 'pas_interesse';
 
@@ -2753,6 +2806,10 @@ function achatVendeurRenegocie() {
     return;
   }
   achatDerniereContrePrix = montant;
+  if (window.currentAchatLog) {
+    window.currentAchatLog.etapes.push({ type: 'vendeur', label: 'Contre-offre acheteur', texte: 'Le club acheteur propose', montant: montant });
+    saveNegoLog('achats', window.currentAchatLog);
+  }
 
   achatNegRound++;
 
@@ -2769,6 +2826,11 @@ function achatVendeurRenegocie() {
   const bonusRound = ecartPct > 0.08 ? achatNegRound * 0.12 : achatNegRound * 0.03;
   const probRupture = Math.min(0.85, 0.15 + ecartPct * 2.0 + bonusRound);
   if (Math.random() < probRupture && achatNegRound >= 1) {
+    if (window.currentAchatLog) {
+      window.currentAchatLog.etapes.push({ type: 'rupture', label: 'Rupture', texte: 'Le vendeur met fin aux négociations', montant: null });
+      window.currentAchatLog.statut = 'rupture';
+      saveNegoLog('achats', window.currentAchatLog);
+    }
     document.getElementById('achatNegociationZone').innerHTML = `
       <div class="result-box">
         <div class="result-box-header" style="color:#e8001e">💔 Le vendeur se retire</div>
@@ -2827,6 +2889,13 @@ function achatAccepte(montant) {
     clubDepart: player._clubActuel || 'Libre', clubArrivee: clubNom, montant });
   localStorage.setItem('rtg_mercato', JSON.stringify(mercato));
 
+  if (window.currentAchatLog) {
+    window.currentAchatLog.etapes.push({ type: 'accord', label: 'Accord', texte: 'Transfert conclu vers ' + clubNom, montant: montant });
+    window.currentAchatLog.statut = 'conclu';
+    window.currentAchatLog.montantFinal = montant;
+    saveNegoLog('achats', window.currentAchatLog);
+    window.currentAchatLog = null;
+  }
   saveClubsJoueurs();
   renderMercatoHistorique();
 
@@ -3178,6 +3247,119 @@ function confirmerModifContrat() {
 
   document.getElementById('contratModifModal').classList.remove('open');
   contratModifData = null;
+}
+
+
+function switchHistoTab(tab) {
+  ['transferts','ventes','achats'].forEach(t => {
+    const tabEl = document.getElementById('htab-'+t);
+    const contentEl = document.getElementById('hcontent-'+t);
+    if (tabEl) tabEl.classList.toggle('active', t===tab);
+    if (contentEl) contentEl.style.display = t===tab ? 'block' : 'none';
+  });
+}
+
+function renderHistorique() {
+  renderHistoriqueTransferts();
+  renderHistoriqueNego('ventes');
+  renderHistoriqueNego('achats');
+}
+
+function renderHistoriqueTransferts() {
+  const historique = JSON.parse(localStorage.getItem('rtg_historique') || '[]');
+  const div = document.getElementById('historiqueList');
+  if (!div) return;
+  if (historique.length === 0) {
+    div.innerHTML = '<div class="empty-state" style="padding:40px"><div class="icon">📭</div><p>Aucun transfert conclu.</p></div>';
+    return;
+  }
+  const reversed = historique.slice().reverse();
+  const rows = reversed.map((h, idx) => {
+    const realIdx = historique.length - 1 - idx;
+    return `<tr>
+      <td>${new Date(h.date).toLocaleDateString('fr-FR')}</td>
+      <td><strong>${h.joueur}</strong></td>
+      <td>${h.clubDepart}</td>
+      <td>→ ${h.clubArrivee}</td>
+      <td><span style="color:#00c853;font-weight:700">${formatValeur(h.montant)}</span></td>
+      <td><button class="trash-btn" onclick="deleteHistoriqueEntry(${realIdx})">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  div.innerHTML = `<table><thead><tr><th>Date</th><th>Joueur</th><th>Club vendeur</th><th>Club acheteur</th><th>Montant</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderHistoriqueNego(type) {
+  const key = type === 'ventes' ? 'rtg_nego_ventes' : 'rtg_nego_achats';
+  const data = JSON.parse(localStorage.getItem(key) || '[]');
+  const divId = type === 'ventes' ? 'historiqueVentesList' : 'historiqueAchatsList';
+  const div = document.getElementById(divId);
+  if (!div) return;
+  if (data.length === 0) {
+    div.innerHTML = '<div class="empty-state" style="padding:40px"><div class="icon">📭</div><p>Aucune négociation enregistrée.</p></div>';
+    return;
+  }
+  div.innerHTML = data.slice().reverse().map((n, i) => {
+    const realIdx = data.length - 1 - i;
+    const statusColor = n.statut === 'conclu' ? '#00c853' : n.statut === 'refus' ? '#e8001e' : '#ffa000';
+    const statusLabel = n.statut === 'conclu' ? '✅ Conclu' : n.statut === 'refus' ? '❌ Refusé' : '💔 Rupture';
+    const negoLines = (n.etapes || []).map(e => {
+      const icon = e.type === 'vendeur' ? '💬' : e.type === 'club' ? '🏟️' : e.type === 'accord' ? '✅' : '❌';
+      const color = e.type === 'accord' ? '#00c853' : e.type === 'rupture' ? '#e8001e' : '#aaa';
+      return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1a1a1a">
+        <span style="font-size:14px;width:20px;text-align:center">${icon}</span>
+        <span style="font-size:11px;color:#555;width:90px;flex-shrink:0">${e.label}</span>
+        <span style="font-size:13px;color:${color};flex:1">${e.texte}</span>
+        ${e.montant ? `<span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:${color}">${formatValeur(e.montant)}</span>` : ''}
+      </div>`;
+    }).join('');
+    return `<div style="background:#111;border:1px solid #222;border-radius:8px;margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;gap:12px" onclick="toggleNegoDetail('nego-${type}-${i}')">
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#f0f0f0">${n.joueur}</span>
+          <span style="font-size:11px;color:#666;margin-left:10px">${new Date(n.date).toLocaleDateString('fr-FR')} · ${n.clubSource||''} → ${n.clubCible||''}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:${statusColor}">${statusLabel}</span>
+          ${n.montantFinal ? `<span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:#00c853">${formatValeur(n.montantFinal)}</span>` : ''}
+          <button class="trash-btn" onclick="event.stopPropagation();deleteNegoEntry('${key}',${realIdx})">🗑️</button>
+          <span style="color:#666;font-size:12px">▼</span>
+        </div>
+      </div>
+      <div id="nego-${type}-${i}" style="display:none;padding:12px 16px;border-top:1px solid #1a1a1a">
+        ${negoLines || '<p style="color:#444;font-size:13px">Aucun détail</p>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleNegoDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function deleteHistoriqueEntry(index) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  const historique = JSON.parse(localStorage.getItem('rtg_historique') || '[]');
+  historique.splice(index, 1);
+  localStorage.setItem('rtg_historique', JSON.stringify(historique));
+  renderHistoriqueTransferts();
+}
+
+function deleteNegoEntry(key, index) {
+  if (!confirm('Supprimer cette négociation ?')) return;
+  const data = JSON.parse(localStorage.getItem(key) || '[]');
+  data.splice(index, 1);
+  localStorage.setItem(key, JSON.stringify(data));
+  renderHistorique();
+}
+
+function saveNegoLog(type, log) {
+  const key = type === 'ventes' ? 'rtg_nego_ventes' : 'rtg_nego_achats';
+  const data = JSON.parse(localStorage.getItem(key) || '[]');
+  const existingIdx = data.findIndex(n => n._id === log._id);
+  if (existingIdx !== -1) data[existingIdx] = log;
+  else data.push(log);
+  localStorage.setItem(key, JSON.stringify(data));
 }
 
 // --- INIT ---
