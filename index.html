@@ -1931,7 +1931,7 @@ function renderJoueurRow(clubName, p, idx) {
   return `<tr style="${rowStyle}">
     <td>
       <span class="${nomClass}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:${contratExpire?'#e8001e':'#f0f0f0'}">${nomDisplay}</span>
-      ${contratExpire ? '<span style="font-size:10px;background:#e8001e;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700">CONTRAT EXPIRÉ</span>' : ''}
+      ${contratExpire ? '<span style="font-size:10px;background:#e8001e;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;font-weight:700">CONTRAT EXPIRÉ</span>' : ''}
       ${pretBadge}${pretInBadge}${optionBadge}
     </td>
     <td>
