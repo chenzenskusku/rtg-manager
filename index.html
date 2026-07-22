@@ -2035,17 +2035,35 @@ function renderClubJoueur(name) {
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
       <p class="section-title" style="margin:0">Effectif (${effectif.length} joueurs)</p>
-      <button class="btn btn-secondary btn-sm" onclick="openAddJoueurModal('${name}')">➕ Ajouter un joueur</button>
-      <button class="btn btn-secondary btn-sm" onclick="openCreerJoueurModal('${name}')" style="color:#ffd600;border-color:#ffd600">⭐ Créer un joueur</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="openAddJoueurModal('${name}')">➕ Ajouter un joueur</button>
+        <button class="btn btn-secondary btn-sm" onclick="openCreerJoueurModal('${name}')" style="color:#ffd600;border-color:#ffd600">⭐ Créer un joueur</button>
+      </div>
     </div>
 
     ${effectif.length === 0 ? `<div class="empty-state" style="padding:40px"><div class="icon">👥</div><p>Aucun joueur dans l'effectif</p></div>` : `
     <table>
       <thead><tr>
-        <th>Joueur</th><th>OVR</th><th>Potentiel</th><th>Âge</th><th>Valeur</th><th>Statut</th><th>Contrat</th><th></th>
+        ${[['nom','Joueur'],['ovr','OVR'],['pot','Potentiel'],['poste','Postes'],['age','Âge'],['val','Valeur']].map(([col,label]) => {
+          const active = sortState.col===col;
+          const icon = active ? (sortState.dir===-1?'↓':'↑') : '<span style="opacity:0.3">↕</span>';
+          return `<th style="cursor:pointer;user-select:none;${active?'color:#1e6bff':''}" onclick="setSort('${col}','${name}')">${label} ${icon}</th>`;
+        }).join('')}
+        <th>Statut</th><th>Contrat</th><th></th>
       </tr></thead>
       <tbody>
-        ${effectif.map((p, idx) => renderJoueurRow(name, p, idx)).join('')}
+        ${[...effectif].sort((a,b) => {
+          const aOvr = a.overall, bOvr = b.overall;
+          switch(sortState.col) {
+            case 'nom': return sortState.dir*(a.nom<b.nom?-1:a.nom>b.nom?1:0);
+            case 'ovr': return sortState.dir*(bOvr-aOvr);
+            case 'pot': return sortState.dir*((b.potentiel||0)-(a.potentiel||0));
+            case 'age': return sortState.dir*(b.age-a.age);
+            case 'val': return sortState.dir*((b.valeur||b.val||0)-(a.valeur||a.val||0));
+            case 'poste': return sortState.dir*((POS_ORDER[a.poste]||99)-(POS_ORDER[b.poste]||99));
+            default: return bOvr-aOvr;
+          }
+        }).map((p, idx) => renderJoueurRow(name, p, effectif.indexOf(p))).join('')}
       </tbody>
     </table>`}`;
 }
@@ -2089,6 +2107,10 @@ function renderJoueurRow(clubName, p, idx) {
     </td>
     <td><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;color:#f0f0f0">${p.age}</span></td>
     <td><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#1e6bff">${formatValeur(joueurVal)}</span></td>
+    <td>
+      <span class="pos-tag pos-main">${p.poste}</span>
+      ${(p.pos2||'').replace(/[\[\]']/g,'').split(',').map(s=>s.trim()).filter(Boolean).map(pos=>`<span class="pos-tag">${pos}</span>`).join('')}
+    </td>
     <td>
       <span style="font-size:12px;color:var(--text-muted)">${isPretOut ? '✈️ En prêt' : isPretIn ? '🔄 Prêté ici' : '✅ Disponible'}</span>
     </td>
