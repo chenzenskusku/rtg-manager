@@ -4332,7 +4332,7 @@ let currentStatType = 'buteurs';
 let statSelectedPlayer = null;
 
 function getClubLogo(clubName) {
-  return clubLogos[clubName] || null;
+  return clubLogos[clubName] || (CLUBS_JOUEURS[clubName] && CLUBS_JOUEURS[clubName].image) || null;
 }
 
 function getPlayerClub(nom) {
@@ -4488,18 +4488,18 @@ function renderStatTable(type, saison) {
     ${stats.map((s, i) => {
       const logo = getClubLogo(s.club);
       const isColor = type === 'buteurs' ? '#e8001e' : '#1e6bff';
-      return `<div style="display:grid;grid-template-columns:32px 1fr auto auto;align-items:center;gap:0;padding:10px 14px;border-bottom:1px solid #1a1a1a;${i===0?'background:rgba(255,214,0,0.04)':''}">
-        <span style="font-size:16px">${medals[i] || (i+1)}</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${logo ? `<img src="${logo}" style="width:22px;height:22px;object-fit:contain;border-radius:50%;flex-shrink:0">` : `<div style="width:22px;height:22px;border-radius:50%;background:#1a1a1a;border:1px solid #333;flex-shrink:0"></div>`}
+      return `<div style="display:grid;grid-template-columns:32px 1fr auto auto;align-items:center;gap:0;padding:14px 16px;border-bottom:1px solid #1a1a1a;${i===0?'background:rgba(255,214,0,0.04)':''}">
+        <span style="font-size:22px;min-width:30px;text-align:center">${medals[i] || '<span style=\"font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:18px;color:#555\">' + (i+1) + '</span>'}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${logo ? `<img src="${logo}" style="width:32px;height:32px;object-fit:contain;border-radius:50%;flex-shrink:0;border:1px solid #333">` : `<div style="width:32px;height:32px;border-radius:50%;background:#1a1a1a;border:1px solid #333;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px">🏟️</div>`}
           <div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:${s.custom?'#ffd600':'#f0f0f0'}">${s.nom}${s.custom?' ⭐':''}</div>
-            <div style="font-size:11px;color:#555">${s.club}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;line-height:1.1;color:${s.custom?'#ffd600':'#f0f0f0'}">${s.nom}${s.custom?' ⭐':''}</div>
+            <div style="font-size:12px;color:#666;margin-top:2px">${s.club}</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;padding:0 10px">
           <button onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},-1)" style="background:#1a1a1a;border:1px solid #333;color:#aaa;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">−</button>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:${isColor};min-width:32px;text-align:center">${s.count}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;color:${isColor};min-width:40px;text-align:center">${s.count}</span>
           <button onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},1)" style="background:#1a1a1a;border:1px solid #333;color:#aaa;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>
         </div>
         <button onclick="supprimerStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison})" style="background:none;border:none;color:#333;cursor:pointer;font-size:14px;padding:4px" title="Retirer">🗑️</button>
