@@ -1220,11 +1220,48 @@ async function smartPoll() {
 
 let _saveQueue = Promise.resolve();
 
-async function saveState() {
+async function saveColumn(col, value) {
+  const body = { updated_at: new Date().toISOString() };
+  body[col] = value;
+  await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+async function saveState(columns) {
   _saveQueue = _saveQueue.then(async () => {
   _isSaving = true;
   setSyncStatus('saving');
   try {
+    // Build only changed columns
+    const body = { updated_at: new Date().toISOString() };
+    const cols = columns || ['clubs','clubs_joueurs','logos','ovr_overrides','effectif_overrides','removed_players','historique','nego_ventes','nego_achats','totw','mercato','evenements','classement','wheel_segments','stats','current_saison'];
+    const colMap = {
+      clubs: CLUBS_DATA,
+      clubs_joueurs: CLUBS_JOUEURS,
+      logos: clubLogos,
+      ovr_overrides: ovrOverrides,
+      effectif_overrides: effectifOverrides,
+      removed_players: removedPlayers,
+      historique: SHARED.historique,
+      nego_ventes: SHARED.nego_ventes,
+      nego_achats: SHARED.nego_achats,
+      totw: SHARED.totw,
+      mercato: SHARED.mercato,
+      evenements: SHARED.evenements,
+      classement: SHARED.classement,
+      wheel_segments: SHARED.wheelSegments,
+      stats: SHARED.stats,
+      current_saison: SHARED.currentSaison,
+    };
+    cols.forEach(c => { if (colMap[c] !== undefined) body[c] = colMap[c]; });
     await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1', {
       method: 'PATCH',
       headers: {
@@ -1233,25 +1270,7 @@ async function saveState() {
         'Authorization': 'Bearer ' + SUPABASE_KEY,
         'Prefer': 'return=minimal'
       },
-      body: JSON.stringify({
-        clubs: CLUBS_DATA,
-        clubs_joueurs: CLUBS_JOUEURS,
-        logos: clubLogos,
-        ovr_overrides: ovrOverrides,
-        effectif_overrides: effectifOverrides,
-        removed_players: removedPlayers,
-        historique: SHARED.historique,
-        nego_ventes: SHARED.nego_ventes,
-        nego_achats: SHARED.nego_achats,
-        totw: SHARED.totw,
-        mercato: SHARED.mercato,
-        evenements: SHARED.evenements,
-        classement: SHARED.classement,
-        wheel_segments: SHARED.wheelSegments,
-        stats: SHARED.stats,
-        current_saison: SHARED.currentSaison,
-        updated_at: new Date().toISOString()
-      })
+      body: JSON.stringify(body)
     });
     _lastKnownUpdatedAt = new Date().toISOString();
     setSyncStatus('ok');
@@ -2196,7 +2215,7 @@ Format :
 
 async function saveHistorique(historique) {
   SHARED.historique = historique;
-  await saveState();
+  await saveState(['historique']);
 }
 
 async function loadHistorique() {
@@ -2216,7 +2235,7 @@ const CLUBS_JOUEURS = {};
 
 // --- Sauvegarde Supabase pour clubs joueurs ---
 async function saveClubsJoueurs() {
-  await saveState();
+  await saveState(['clubs_joueurs']);
 }
 
 // --- Sidebar clubs joueurs ---
@@ -3385,7 +3404,7 @@ function deleteMercatoEntry(type, idx) {
   const mercato = SHARED.mercato;
   mercato[type].splice(idx, 1);
   SHARED.mercato = mercato;
-  saveState();
+  saveState(['mercato']);
   renderMercatoHistorique();
 }
 
@@ -3845,7 +3864,8 @@ function saveNegoLog(type, log) {
   const existingIdx = arr.findIndex(n => n._id === log._id);
   if (existingIdx !== -1) arr[existingIdx] = log;
   else arr.push(log);
-  saveState();
+  const col = type === 'ventes' ? 'nego_ventes' : 'nego_achats';
+  saveState([col]);
 }
 
 
@@ -3880,7 +3900,7 @@ function getTOTWData() {
 
 function saveTOTWData(data) {
   SHARED.totw = data;
-  saveState();
+  saveState(['totw']);
 }
 
 function getAllPlayers() {
@@ -4092,7 +4112,7 @@ function ajouterSegment() {
   wheelSegments.push({ label: val, color: WHEEL_COLORS[wheelSegments.length % WHEEL_COLORS.length] });
   input.value = '';
   SHARED.wheelSegments = wheelSegments;
-  saveState();
+  saveState(['wheel_segments']);
   renderWheelSegments();
   drawWheel();
 }
@@ -4100,7 +4120,7 @@ function ajouterSegment() {
 function supprimerSegment(idx) {
   wheelSegments.splice(idx, 1);
   SHARED.wheelSegments = wheelSegments;
-  saveState();
+  saveState(['wheel_segments']);
   renderWheelSegments();
   drawWheel();
 }
@@ -4286,7 +4306,7 @@ function confirmerCreerEvenement() {
   const ev = { id: Date.now(), titre, description, club, saison, journee, type, date: new Date().toISOString() };
   SHARED.evenements = SHARED.evenements || [];
   SHARED.evenements.push(ev);
-  saveState();
+  saveState(['evenements']);
   document.getElementById('creerEvenementModal').classList.remove('open');
   renderEvenements();
 }
@@ -4294,7 +4314,7 @@ function confirmerCreerEvenement() {
 function deleteEvenement(id) {
   if (!confirm('Supprimer cet évènement ?')) return;
   SHARED.evenements = (SHARED.evenements || []).filter(e => e.id !== id);
-  saveState();
+  saveState(['evenements']);
   renderEvenements();
 }
 
@@ -4440,7 +4460,7 @@ async function confirmerAjouterStat() {
   };
   SHARED.stats[type].push(entry);
 
-  await saveState();
+  await saveState(['stats']);
   document.getElementById('ajouterStatModal').classList.remove('open');
   // Force re-render with correct saison
   renderClassement();
@@ -4451,14 +4471,14 @@ async function modifierStat(type, nom, saison, delta) {
   const entry = SHARED.stats[type].find(s => s.nom === nom && parseInt(s.saison) === parseInt(saison));
   if (!entry) return;
   entry.count = Math.max(0, entry.count + delta);
-  await saveState();
+  await saveState(['stats']);
   renderClassement();
 }
 
 function supprimerStat(type, nom, saison) {
   if (!confirm('Retirer ' + nom + ' du classement ?')) return;
   SHARED.stats[type] = SHARED.stats[type].filter(s => !(s.nom === nom && s.saison === saison));
-  saveState();
+  saveState(['stats']);
   renderClassement();
 }
 
