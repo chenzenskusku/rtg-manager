@@ -335,8 +335,8 @@ window.closePretModal = function() {};
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase">⚽ Classement individuel</h2>
       <select id="classementSaisonFilter" class="search-input" style="margin:0;width:160px" onchange="renderClassement()">
-        <option value="1" selected>Saison 1</option>
-        <option value="2">Saison 2</option>
+        <option value="1">Saison 1</option>
+        <option value="2" selected>Saison 2</option>
         <option value="3">Saison 3</option>
         <option value="4">Saison 4</option>
         <option value="5">Saison 5</option>
@@ -4417,11 +4417,7 @@ async function confirmerAjouterStat() {
   if (!SHARED.stats) SHARED.stats = { buteurs: [], passeurs: [] };
   if (!SHARED.stats[type]) SHARED.stats[type] = [];
 
-  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && parseInt(s.saison) === saison);
-  if (existing) {
-    alert(statSelectedPlayer.nom + ' est déjà dans le classement pour la saison ' + saison + '.');
-    return;
-  }
+
 
   const clubInfo = getPlayerClub(statSelectedPlayer.nom);
   const entry = {
