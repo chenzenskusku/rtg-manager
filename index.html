@@ -1194,28 +1194,61 @@ function reRenderActiveView() {
   }
 }
 
-// Smart polling - only reload if someone else changed the data
 let _lastKnownUpdatedAt = null;
 let _isSaving = false;
+let _myClientId = Math.random().toString(36).slice(2); // unique ID per tab
 
-async function smartPoll() {
-  if (_isSaving) return; // Don't poll while we're saving
-  try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1&select=updated_at', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-    });
-    const data = await r.json();
-    if (!data || !data[0]) return;
-    const serverUpdatedAt = data[0].updated_at;
-    if (_lastKnownUpdatedAt && serverUpdatedAt !== _lastKnownUpdatedAt) {
-      // Someone else updated - reload and re-render
-      await reloadStateFromServer();
-      reRenderActiveView();
-      document.getElementById('syncLabel').textContent = '🔄 Mis à jour';
-      setTimeout(() => { document.getElementById('syncLabel').textContent = 'En ligne'; }, 2000);
-    }
-    _lastKnownUpdatedAt = serverUpdatedAt;
-  } catch(e) { /* silently ignore poll errors */ }
+function initRealtime() {
+  // Use Supabase Realtime via WebSocket
+  const wsUrl = SUPABASE_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
+  let ws;
+  let heartbeat;
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      // Subscribe to rtg_state changes
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:rtg_state',
+        event: 'phx_join',
+        payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: 'UPDATE', schema: 'public', table: 'rtg_state' }] } },
+        ref: '1'
+      }));
+      heartbeat = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: null }));
+        }
+      }, 30000);
+      setSyncStatus('ok');
+    };
+
+    ws.onmessage = async (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'postgres_changes' || (msg.payload && msg.payload.data && msg.payload.data.type === 'UPDATE')) {
+          if (_isSaving) return; // Ignore if we're the one saving
+          await reloadStateFromServer();
+          reRenderActiveView();
+          document.getElementById('syncLabel').textContent = '🔄 Mis à jour';
+          setTimeout(() => { document.getElementById('syncLabel').textContent = 'En ligne'; }, 2000);
+        }
+      } catch(err) {}
+    };
+
+    ws.onclose = () => {
+      clearInterval(heartbeat);
+      setSyncStatus('error');
+      // Reconnect after 3 seconds
+      setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  connect();
 }
 
 let _saveQueue = Promise.resolve();
@@ -1272,7 +1305,7 @@ async function saveState(columns) {
       },
       body: JSON.stringify(body)
     });
-    _lastKnownUpdatedAt = new Date().toISOString();
+    _lastKnownUpdatedAt = new Date().toISOString(); // Mark our own save
     setSyncStatus('ok');
     lastUpdatedAt = new Date().toISOString();
   } catch(e) {
@@ -4751,8 +4784,8 @@ document.getElementById('mainContent').innerHTML = '<div class="empty-state"><di
     openEditClub(btn.dataset.clubEdit);
   });
 
-  // Smart polling toutes les 5 secondes
-  setInterval(smartPoll, 2000);
+  // Realtime sync via Supabase WebSocket
+  initRealtime();
 })();
 
 // Event delegation for trash buttons
