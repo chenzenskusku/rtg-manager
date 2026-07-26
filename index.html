@@ -151,6 +151,11 @@ window.closePretModal = function() {};
     <button onclick="refreshFromServer()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-size:12px;padding:5px 10px;border-radius:5px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:0.5px" title="Actualiser les données">🔄 Actualiser</button>
   </div>
 </header>
+<div id="updateNotification" style="display:none;align-items:center;justify-content:center;gap:12px;background:#1a2a1a;border-bottom:2px solid #00c853;padding:10px 20px">
+  <span style="color:#00c853;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px">🔄 Des modifications ont été effectuées par un autre utilisateur</span>
+  <button onclick="applyUpdate()" style="background:#00c853;border:none;color:#000;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;padding:6px 16px;border-radius:5px;cursor:pointer">Charger les modifications</button>
+  <button onclick="document.getElementById('updateNotification').style.display='none'" style="background:none;border:1px solid #333;color:#666;font-size:12px;padding:5px 10px;border-radius:5px;cursor:pointer">Ignorer</button>
+</div>
 
 <div class="main-nav">
   <div class="main-nav-tab active" id="navtab-clubs" onclick="switchMainView('clubs')">🏟️ Clubs</div>
@@ -992,7 +997,7 @@ function addClubToSidebar(name) {
   item.querySelector('#file-'+safeId).addEventListener('change', e => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveState(); };
+    reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveSharedKey('logos'); };
     reader.readAsDataURL(file);
   });
   item.addEventListener('click', () => selectClub(name));
@@ -1171,6 +1176,18 @@ const SUPABASE_URL = 'https://jfsolpziiczdshjrspkl.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmc29scHppaWN6ZHNoanJzcGtsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzA4MjQsImV4cCI6MjA5OTk0NjgyNH0.KN-Naci64iDFcLgHbXG5qTe4SqSi-3ojjdJWplto1lY';
 
 
+function showUpdateNotification() {
+  const notif = document.getElementById('updateNotification');
+  if (notif) notif.style.display = 'flex';
+}
+
+async function applyUpdate() {
+  const notif = document.getElementById('updateNotification');
+  if (notif) notif.style.display = 'none';
+  await reloadStateFromServer();
+  reRenderActiveView();
+}
+
 async function refreshFromServer() {
   setSyncStatus('saving');
   document.getElementById('syncLabel').textContent = 'Chargement...';
@@ -1208,13 +1225,15 @@ function initRealtime() {
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      // Subscribe to rtg_state changes
-      ws.send(JSON.stringify({
-        topic: 'realtime:public:rtg_state',
-        event: 'phx_join',
-        payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: 'UPDATE', schema: 'public', table: 'rtg_state' }] } },
-        ref: '1'
-      }));
+      // Subscribe to all 3 tables
+      ['clubs_ia','clubs_joueurs_table','shared_data'].forEach((table, i) => {
+        ws.send(JSON.stringify({
+          topic: 'realtime:public:' + table,
+          event: 'phx_join',
+          payload: { config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: '*', schema: 'public', table }] } },
+          ref: String(i+1)
+        }));
+      });
       heartbeat = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: null }));
@@ -1227,11 +1246,11 @@ function initRealtime() {
       try {
         const msg = JSON.parse(e.data);
         if (msg.event === 'postgres_changes' || (msg.payload && msg.payload.data && msg.payload.data.type === 'UPDATE')) {
-          if (_isSaving) return; // Ignore if we're the one saving
-          await reloadStateFromServer();
-          reRenderActiveView();
-          document.getElementById('syncLabel').textContent = '🔄 Mis à jour';
-          setTimeout(() => { document.getElementById('syncLabel').textContent = 'En ligne'; }, 2000);
+          if (_isSaving) return;
+          const msSinceOurSave = _lastKnownUpdatedAt ? (Date.now() - new Date(_lastKnownUpdatedAt).getTime()) : 99999;
+          if (msSinceOurSave < 4000) return; // Ignore our own save echo
+          // Show notification instead of auto-reloading
+          showUpdateNotification();
         }
       } catch(err) {}
     };
@@ -1253,19 +1272,123 @@ function initRealtime() {
 
 let _saveQueue = Promise.resolve();
 
-async function saveColumn(col, value) {
-  const body = { updated_at: new Date().toISOString() };
-  body[col] = value;
-  await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1', {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'Prefer': 'return=minimal'
-    },
-    body: JSON.stringify(body)
+// =================== NOUVELLE ARCHITECTURE MULTI-TABLES ===================
+const SUPA_HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Prefer': 'return=minimal'
+};
+
+async function upsertRow(table, id, data) {
+  await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id, data, updated_at: new Date().toISOString() })
   });
+}
+
+async function upsertShared(key, value) {
+  await fetch(SUPABASE_URL + '/rest/v1/shared_data', {
+    method: 'POST',
+    headers: { ...SUPA_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() })
+  });
+}
+
+async function saveClubIA(clubName) {
+  await upsertRow('clubs_ia', clubName, CLUBS_DATA[clubName]);
+}
+
+async function saveAllClubsIA() {
+  await Promise.all(Object.keys(CLUBS_DATA).map(name => saveClubIA(name)));
+}
+
+async function saveClubJoueur(clubName) {
+  await upsertRow('clubs_joueurs_table', clubName, CLUBS_JOUEURS[clubName]);
+}
+
+async function saveAllClubsJoueurs() {
+  await Promise.all(Object.keys(CLUBS_JOUEURS).map(name => saveClubJoueur(name)));
+}
+
+async function saveSharedKey(key) {
+  const keyMap = {
+    historique: SHARED.historique,
+    nego_ventes: SHARED.nego_ventes,
+    nego_achats: SHARED.nego_achats,
+    totw: SHARED.totw,
+    mercato: SHARED.mercato,
+    evenements: SHARED.evenements,
+    classement: SHARED.classement,
+    wheel_segments: SHARED.wheelSegments,
+    stats: SHARED.stats,
+    current_saison: SHARED.currentSaison,
+    logos: clubLogos,
+    ovr_overrides: ovrOverrides,
+    effectif_overrides: effectifOverrides,
+    removed_players: removedPlayers,
+    groq_key: getGroqKey()
+  };
+  if (keyMap[key] !== undefined) await upsertShared(key, keyMap[key]);
+}
+
+async function loadAllData() {
+  try {
+    // Load clubs IA
+    const r1 = await fetch(SUPABASE_URL + '/rest/v1/clubs_ia?select=id,data', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const clubsIA = await r1.json();
+    if (Array.isArray(clubsIA)) {
+      Object.keys(CLUBS_DATA).forEach(k => delete CLUBS_DATA[k]);
+      clubsIA.forEach(row => { if (row.data) CLUBS_DATA[row.id] = row.data; });
+    }
+
+    // Load clubs joueurs
+    const r2 = await fetch(SUPABASE_URL + '/rest/v1/clubs_joueurs_table?select=id,data', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const clubsJ = await r2.json();
+    if (Array.isArray(clubsJ)) {
+      Object.keys(CLUBS_JOUEURS).forEach(k => delete CLUBS_JOUEURS[k]);
+      clubsJ.forEach(row => { if (row.data) CLUBS_JOUEURS[row.id] = row.data; });
+    }
+
+    // Load shared data
+    const r3 = await fetch(SUPABASE_URL + '/rest/v1/shared_data?select=key,value', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const shared = await r3.json();
+    if (Array.isArray(shared)) {
+      shared.forEach(row => {
+        switch(row.key) {
+          case 'historique': SHARED.historique = row.value || []; break;
+          case 'nego_ventes': SHARED.nego_ventes = row.value || []; break;
+          case 'nego_achats': SHARED.nego_achats = row.value || []; break;
+          case 'totw': SHARED.totw = row.value || []; break;
+          case 'mercato': SHARED.mercato = row.value || {ventes:[],achats:[]}; break;
+          case 'evenements': SHARED.evenements = row.value || []; break;
+          case 'classement': SHARED.classement = row.value || []; break;
+          case 'wheel_segments': SHARED.wheelSegments = row.value || []; break;
+          case 'stats': SHARED.stats = row.value || {buteurs:[],passeurs:[]}; break;
+          case 'current_saison': SHARED.currentSaison = row.value || 2; break;
+          case 'logos': Object.assign(clubLogos, row.value || {}); break;
+          case 'ovr_overrides': Object.assign(ovrOverrides, row.value || {}); break;
+          case 'effectif_overrides': Object.assign(effectifOverrides, row.value || {}); break;
+          case 'removed_players': Object.assign(removedPlayers, row.value || {}); break;
+          case 'groq_key': if (row.value) localStorage.setItem('rtg_groq_key', row.value); break;
+        }
+      });
+    }
+  } catch(e) {
+    console.error('Erreur chargement données:', e);
+  }
+}
+
+async function saveColumn(col, value) {
+  // Legacy - redirect to new system
+  await upsertShared(col, value);
 }
 
 async function saveState(columns) {
@@ -1273,43 +1396,20 @@ async function saveState(columns) {
   _isSaving = true;
   setSyncStatus('saving');
   try {
-    // Build only changed columns
-    const body = { updated_at: new Date().toISOString() };
     const cols = columns || ['clubs','clubs_joueurs','logos','ovr_overrides','effectif_overrides','removed_players','historique','nego_ventes','nego_achats','totw','mercato','evenements','classement','wheel_segments','stats','current_saison'];
-    const colMap = {
-      clubs: CLUBS_DATA,
-      clubs_joueurs: CLUBS_JOUEURS,
-      logos: clubLogos,
-      ovr_overrides: ovrOverrides,
-      effectif_overrides: effectifOverrides,
-      removed_players: removedPlayers,
-      historique: SHARED.historique,
-      nego_ventes: SHARED.nego_ventes,
-      nego_achats: SHARED.nego_achats,
-      totw: SHARED.totw,
-      mercato: SHARED.mercato,
-      evenements: SHARED.evenements,
-      classement: SHARED.classement,
-      wheel_segments: SHARED.wheelSegments,
-      stats: SHARED.stats,
-      current_saison: SHARED.currentSaison,
-    };
-    cols.forEach(c => { if (colMap[c] !== undefined) body[c] = colMap[c]; });
-    await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1', {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(body)
-    });
-    _lastKnownUpdatedAt = new Date().toISOString(); // Mark our own save
+    const sharedKeys = ['logos','ovr_overrides','effectif_overrides','removed_players','historique','nego_ventes','nego_achats','totw','mercato','evenements','classement','wheel_segments','stats','current_saison'];
+
+    const promises = [];
+    if (cols.includes('clubs')) promises.push(saveAllClubsIA());
+    if (cols.includes('clubs_joueurs')) promises.push(saveAllClubsJoueurs());
+    sharedKeys.forEach(k => { if (cols.includes(k)) promises.push(saveSharedKey(k)); });
+    await Promise.all(promises);
+
+    _lastKnownUpdatedAt = new Date().toISOString();
     setSyncStatus('ok');
     lastUpdatedAt = new Date().toISOString();
   } catch(e) {
-    console.error('Erreur sauvegarde Supabase:', e);
+    console.error('Erreur sauvegarde:', e);
     setSyncStatus('error');
   } finally {
     _isSaving = false;
@@ -1319,46 +1419,7 @@ async function saveState(columns) {
 }
 
 async function loadState() {
-  try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1&select=*', {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY
-      }
-    });
-    const data = await r.json();
-    if (data && data.length > 0) {
-      const state = data[0];
-      if (state.clubs) {
-        Object.keys(CLUBS_DATA).forEach(k => delete CLUBS_DATA[k]);
-        Object.assign(CLUBS_DATA, state.clubs);
-      }
-      if (state.logos) Object.assign(clubLogos, state.logos);
-      if (state.ovr_overrides) Object.assign(ovrOverrides, state.ovr_overrides);
-      if (state.effectif_overrides) Object.assign(effectifOverrides, state.effectif_overrides);
-      if (state.removed_players) Object.assign(removedPlayers, state.removed_players);
-      if (state.clubs_joueurs) {
-        Object.keys(CLUBS_JOUEURS).forEach(k => delete CLUBS_JOUEURS[k]);
-        Object.assign(CLUBS_JOUEURS, state.clubs_joueurs);
-      }
-      if (state.groq_key) localStorage.setItem('rtg_groq_key', state.groq_key);
-      if (state.historique) SHARED.historique = state.historique;
-      if (state.nego_ventes) SHARED.nego_ventes = state.nego_ventes;
-      if (state.nego_achats) SHARED.nego_achats = state.nego_achats;
-      if (state.totw) SHARED.totw = state.totw;
-      if (state.mercato && state.mercato.ventes) SHARED.mercato = state.mercato;
-      if (state.evenements) SHARED.evenements = state.evenements;
-      if (state.classement) SHARED.classement = state.classement;
-      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
-      if (state.stats) SHARED.stats = state.stats;
-      if (state.current_saison) SHARED.currentSaison = state.current_saison;
-      if (state.evenements) SHARED.evenements = state.evenements;
-      if (state.classement) SHARED.classement = state.classement;
-      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
-      if (state.stats) SHARED.stats = state.stats;
-      if (state.current_saison) SHARED.currentSaison = state.current_saison;
-    }
-  } catch(e) { console.warn('Erreur chargement state Supabase', e); }
+  await loadAllData();
 }
 
 const clubLogos = {};
@@ -1482,7 +1543,7 @@ function initSidebar() {
     item.querySelector('#file-'+safeId).addEventListener('change', e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveState(); };
+      reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveSharedKey('logos'); };
       reader.readAsDataURL(file);
     });
     item.addEventListener('click', () => selectClub(name));
@@ -1503,7 +1564,7 @@ function updateAvatar(name) {
   avatar.querySelector('#file-'+safeId).addEventListener('change', e => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveState(); };
+    reader.onload = ev => { clubLogos[name] = ev.target.result; updateAvatar(name); saveSharedKey('logos'); };
     reader.readAsDataURL(file);
   });
 }
@@ -2268,7 +2329,16 @@ const CLUBS_JOUEURS = {};
 
 // --- Sauvegarde Supabase pour clubs joueurs ---
 async function saveClubsJoueurs() {
-  await saveState(['clubs_joueurs']);
+  _saveQueue = _saveQueue.then(async () => {
+    _isSaving = true;
+    setSyncStatus('saving');
+    try {
+      await saveAllClubsJoueurs();
+      _lastKnownUpdatedAt = new Date().toISOString();
+      setSyncStatus('ok');
+    } catch(e) { setSyncStatus('error'); } finally { _isSaving = false; }
+  });
+  return _saveQueue;
 }
 
 // --- Sidebar clubs joueurs ---
@@ -4645,65 +4715,7 @@ async function checkForUpdates() {
 }
 
 async function reloadStateFromServer() {
-  if (isSyncing) return;
-  isSyncing = true;
-  try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/rtg_state?id=eq.1&select=*', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-    });
-    const data = await r.json();
-    if (!data || !data.length) return;
-    const state = data[0];
-
-    if (state.clubs) {
-      Object.keys(CLUBS_DATA).forEach(k => delete CLUBS_DATA[k]);
-      Object.assign(CLUBS_DATA, state.clubs);
-    }
-    if (state.logos) { Object.keys(clubLogos).forEach(k => delete clubLogos[k]); Object.assign(clubLogos, state.logos); }
-    if (state.ovr_overrides) { Object.keys(ovrOverrides).forEach(k => delete ovrOverrides[k]); Object.assign(ovrOverrides, state.ovr_overrides); }
-    if (state.effectif_overrides) { Object.keys(effectifOverrides).forEach(k => delete effectifOverrides[k]); Object.assign(effectifOverrides, state.effectif_overrides); }
-    if (state.removed_players) { Object.keys(removedPlayers).forEach(k => delete removedPlayers[k]); Object.assign(removedPlayers, state.removed_players); }
-    if (state.clubs_joueurs) { Object.keys(CLUBS_JOUEURS).forEach(k => delete CLUBS_JOUEURS[k]); Object.assign(CLUBS_JOUEURS, state.clubs_joueurs); }
-
-    // Refresh sidebar clubs IA
-    document.getElementById('clubList').innerHTML = '';
-    Object.keys(CLUBS_DATA).forEach(name => addClubToSidebar(name));
-    Object.keys(clubLogos).forEach(name => updateAvatar(name));
-    // Refresh sidebar clubs joueurs
-    if (state.clubs_joueurs) {
-      Object.keys(CLUBS_JOUEURS).forEach(k => delete CLUBS_JOUEURS[k]);
-      Object.assign(CLUBS_JOUEURS, state.clubs_joueurs);
-      document.getElementById('clubJoueurList').innerHTML = '';
-      Object.keys(CLUBS_JOUEURS).forEach(name => addClubJoueurToSidebar(name));
-    }
-      if (state.historique) SHARED.historique = state.historique;
-      if (state.nego_ventes) SHARED.nego_ventes = state.nego_ventes;
-      if (state.nego_achats) SHARED.nego_achats = state.nego_achats;
-      if (state.totw) SHARED.totw = state.totw;
-      if (state.mercato && state.mercato.ventes) SHARED.mercato = state.mercato;
-      if (state.evenements) SHARED.evenements = state.evenements;
-      if (state.classement) SHARED.classement = state.classement;
-      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
-      if (state.stats) SHARED.stats = state.stats;
-      if (state.current_saison) SHARED.currentSaison = state.current_saison;
-      if (state.evenements) SHARED.evenements = state.evenements;
-      if (state.classement) SHARED.classement = state.classement;
-      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
-      if (state.stats) SHARED.stats = state.stats;
-      if (state.current_saison) SHARED.currentSaison = state.current_saison;
-
-    // Refresh current club view if one is selected
-    if (selectedClub && CLUBS_DATA[selectedClub]) renderClub(selectedClub);
-    else if (selectedClub && !CLUBS_DATA[selectedClub]) {
-      selectedClub = null;
-      document.getElementById('mainContent').innerHTML = '<div class="empty-state"><div class="icon">🏟️</div><p>Sélectionne un club pour commencer</p></div>';
-    }
-
-    setSyncStatus('ok');
-  } catch(e) {
-    setSyncStatus('error');
-  }
-  isSyncing = false;
+  await loadAllData();
 }
 
 // Show loading screen while fetching data
