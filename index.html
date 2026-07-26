@@ -4412,40 +4412,43 @@ function selectStatJoueur(player) {
 
 async function confirmerAjouterStat() {
   if (!statSelectedPlayer) { alert('Sélectionnez un joueur.'); return; }
-  const saison = parseInt(document.getElementById('classementSaisonFilter').value || '1');
+  const saisonEl = document.getElementById('classementSaisonFilter');
+  const saison = parseInt(saisonEl ? saisonEl.value : SHARED.currentSaison || 2);
   const type = currentStatType;
 
   if (!SHARED.stats) SHARED.stats = { buteurs: [], passeurs: [] };
   if (!SHARED.stats[type]) SHARED.stats[type] = [];
 
-  // Check if player already exists for this saison
-  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && parseInt(s.saison) === parseInt(saison));
+  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && parseInt(s.saison) === saison);
   if (existing) {
-    alert(statSelectedPlayer.nom + ' est déjà dans le classement pour cette saison.');
+    alert(statSelectedPlayer.nom + ' est déjà dans le classement pour la saison ' + saison + '.');
     return;
   }
 
   const clubInfo = getPlayerClub(statSelectedPlayer.nom);
-  SHARED.stats[type].push({
+  const entry = {
     nom: statSelectedPlayer.nom,
     poste: statSelectedPlayer.poste,
-    club: statSelectedPlayer.club !== 'Libre' ? statSelectedPlayer.club : clubInfo.club,
+    club: (statSelectedPlayer.club && statSelectedPlayer.club !== 'Libre') ? statSelectedPlayer.club : clubInfo.club,
     custom: statSelectedPlayer.custom || false,
-    saison,
+    saison: saison,
     count: 0
-  });
+  };
+  SHARED.stats[type].push(entry);
 
   await saveState();
   document.getElementById('ajouterStatModal').classList.remove('open');
+  // Force re-render with correct saison
+  if (saisonEl) saisonEl.value = saison;
   renderClassement();
 }
 
-function modifierStat(type, nom, saison, delta) {
+async function modifierStat(type, nom, saison, delta) {
   if (!SHARED.stats || !SHARED.stats[type]) return;
-  const entry = SHARED.stats[type].find(s => s.nom === nom && s.saison === saison);
+  const entry = SHARED.stats[type].find(s => s.nom === nom && parseInt(s.saison) === parseInt(saison));
   if (!entry) return;
   entry.count = Math.max(0, entry.count + delta);
-  saveState();
+  await saveState();
   renderClassement();
 }
 
