@@ -912,7 +912,8 @@ const SHARED = {
   evenements: [],
   classement: [],
   wheelSegments: [],
-  stats: { buteurs: [], passeurs: [] }
+  stats: { buteurs: [], passeurs: [] },
+  currentSaison: 2
 };
 let DB = [];
 let selectedClub = null;
@@ -1237,6 +1238,7 @@ async function saveState() {
         classement: SHARED.classement,
         wheel_segments: SHARED.wheelSegments,
         stats: SHARED.stats,
+        current_saison: SHARED.currentSaison,
         updated_at: new Date().toISOString()
       })
     });
@@ -1286,10 +1288,12 @@ async function loadState() {
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
       if (state.stats) SHARED.stats = state.stats;
+      if (state.current_saison) SHARED.currentSaison = state.current_saison;
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
       if (state.stats) SHARED.stats = state.stats;
+      if (state.current_saison) SHARED.currentSaison = state.current_saison;
     }
   } catch(e) { console.warn('Erreur chargement state Supabase', e); }
 }
@@ -3846,9 +3850,20 @@ function switchMainView(view) {
   if (viewEl) viewEl.classList.add('active');
   if (view === 'historique') renderHistorique();
   if (view === 'mercato') initMercatoSelects();
-  if (view === 'totw') renderTOTW();
+  if (view === 'totw') {
+    const s = SHARED.currentSaison || 2;
+    const sel = document.getElementById('totwSaison');
+    if (sel) sel.value = s;
+    updateTotwJournees();
+    renderTOTW();
+  }
   if (view === 'evenements') { initWheel(); }
-  if (view === 'classement') { renderClassement(); }
+  if (view === 'classement') {
+    const s = SHARED.currentSaison || 2;
+    const sel = document.getElementById('classementSaisonFilter');
+    if (sel) sel.value = s;
+    renderClassement();
+  }
 }
 
 function getTOTWData() {
@@ -4395,16 +4410,16 @@ function selectStatJoueur(player) {
   document.getElementById('statJoueurSelectedInfo').textContent = player.poste + ' · ' + player.club;
 }
 
-function confirmerAjouterStat() {
+async function confirmerAjouterStat() {
   if (!statSelectedPlayer) { alert('Sélectionnez un joueur.'); return; }
-  const saison = parseInt(document.getElementById('classementSaisonFilter').value);
+  const saison = parseInt(document.getElementById('classementSaisonFilter').value || '1');
   const type = currentStatType;
 
   if (!SHARED.stats) SHARED.stats = { buteurs: [], passeurs: [] };
   if (!SHARED.stats[type]) SHARED.stats[type] = [];
 
   // Check if player already exists for this saison
-  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && s.saison === saison);
+  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && parseInt(s.saison) === parseInt(saison));
   if (existing) {
     alert(statSelectedPlayer.nom + ' est déjà dans le classement pour cette saison.');
     return;
@@ -4420,7 +4435,7 @@ function confirmerAjouterStat() {
     count: 0
   });
 
-  saveState();
+  await saveState();
   document.getElementById('ajouterStatModal').classList.remove('open');
   renderClassement();
 }
@@ -4447,12 +4462,16 @@ function renderClassement() {
   renderStatTable('passeurs', saison);
 }
 
+function getSaisonFilter() {
+  return parseInt(document.getElementById('classementSaisonFilter')?.value || '1');
+}
+
 function renderStatTable(type, saison) {
   const divId = type === 'buteurs' ? 'classementButeurs' : 'classementPasseurs';
   const div = document.getElementById(divId);
   if (!div) return;
 
-  const stats = ((SHARED.stats || {})[type] || []).filter(s => s.saison === saison).sort((a,b) => b.count - a.count);
+  const stats = ((SHARED.stats || {})[type] || []).filter(s => parseInt(s.saison) === parseInt(saison)).sort((a,b) => b.count - a.count);
   const label = type === 'buteurs' ? 'But' : 'Passe';
   const medals = ['🥇','🥈','🥉'];
 
@@ -4646,10 +4665,12 @@ async function reloadStateFromServer() {
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
       if (state.stats) SHARED.stats = state.stats;
+      if (state.current_saison) SHARED.currentSaison = state.current_saison;
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
       if (state.stats) SHARED.stats = state.stats;
+      if (state.current_saison) SHARED.currentSaison = state.current_saison;
 
     // Refresh current club view if one is selected
     if (selectedClub && CLUBS_DATA[selectedClub]) renderClub(selectedClub);
