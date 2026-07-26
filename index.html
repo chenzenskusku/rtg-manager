@@ -335,7 +335,7 @@ window.closePretModal = function() {};
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase">⚽ Classement individuel</h2>
       <select id="classementSaisonFilter" class="search-input" style="margin:0;width:160px" onchange="renderClassement()">
-        <option value="1">Saison 1</option>
+        <option value="1" selected>Saison 1</option>
         <option value="2">Saison 2</option>
         <option value="3">Saison 3</option>
         <option value="4">Saison 4</option>
@@ -3859,9 +3859,6 @@ function switchMainView(view) {
   }
   if (view === 'evenements') { initWheel(); }
   if (view === 'classement') {
-    const s = SHARED.currentSaison || 2;
-    const sel = document.getElementById('classementSaisonFilter');
-    if (sel) sel.value = s;
     renderClassement();
   }
 }
@@ -4357,7 +4354,8 @@ function ouvrirAjouterStat(type) {
   document.getElementById('statJoueurResults').innerHTML = '';
   document.getElementById('statJoueurSelected').style.display = 'none';
   const isButeur = type === 'buteurs';
-  document.getElementById('ajouterStatTitle').textContent = isButeur ? '⚽ Ajouter un buteur' : '🎯 Ajouter un passeur';
+  const saison = parseInt(document.getElementById('classementSaisonFilter')?.value || SHARED.currentSaison || 2);
+  document.getElementById('ajouterStatTitle').textContent = (isButeur ? '⚽ Ajouter un buteur' : '🎯 Ajouter un passeur') + ' — Saison ' + saison;
   document.getElementById('ajouterStatHeader').style.borderBottomColor = isButeur ? '#e8001e' : '#1e6bff';
   document.getElementById('ajouterStatModal').classList.add('open');
 }
@@ -4460,7 +4458,8 @@ function supprimerStat(type, nom, saison) {
 }
 
 function renderClassement() {
-  const saison = parseInt(document.getElementById('classementSaisonFilter')?.value || '1');
+  const el = document.getElementById('classementSaisonFilter');
+  const saison = el ? parseInt(el.value) : (SHARED.currentSaison || 2);
   renderStatTable('buteurs', saison);
   renderStatTable('passeurs', saison);
 }
