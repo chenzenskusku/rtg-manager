@@ -152,10 +152,12 @@ window.closePretModal = function() {};
 </header>
 
 <div class="main-nav">
-  <div class="main-nav-tab active" id="navtab-clubs" onclick="switchMainView('clubs')">⚽ Clubs</div>
+  <div class="main-nav-tab active" id="navtab-clubs" onclick="switchMainView('clubs')">🏟️ Clubs</div>
   <div class="main-nav-tab" id="navtab-mercato" onclick="switchMainView('mercato')">💼 Mercato</div>
   <div class="main-nav-tab" id="navtab-historique" onclick="switchMainView('historique')">📜 Historique</div>
   <div class="main-nav-tab" id="navtab-totw" onclick="switchMainView('totw')">🏆 TOTW</div>
+  <div class="main-nav-tab" id="navtab-evenements" onclick="switchMainView('evenements')">🎲 Évènements aléatoires</div>
+  <div class="main-nav-tab" id="navtab-classement" onclick="switchMainView('classement')">⚽ Classement indiv.</div>
   <div style="margin-left:auto;padding:8px 16px">
     <button onclick="ouvrirFinSaison()" style="background:linear-gradient(135deg,#e8001e,#a00010);border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;padding:8px 16px;border-radius:6px;cursor:pointer;transition:opacity 0.15s" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">🏁 Fin de saison</button>
   </div>
@@ -285,6 +287,68 @@ window.closePretModal = function() {};
   </div>
 </div>
 
+<!-- VIEW EVENEMENTS -->
+<div class="view-section" id="view-evenements" style="padding:32px">
+  <div style="max-width:1000px;margin:0 auto">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px">🎲 Évènements aléatoires</h2>
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:32px;align-items:start">
+
+      <!-- ROUE -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:20px">
+        <div style="position:relative">
+          <!-- Flèche indicatrice -->
+          <div style="position:absolute;top:50%;right:-18px;transform:translateY(-50%);width:0;height:0;border-top:14px solid transparent;border-bottom:14px solid transparent;border-right:24px solid #e8001e;z-index:10;filter:drop-shadow(0 0 4px rgba(232,0,30,0.6))"></div>
+          <canvas id="wheelCanvas" width="420" height="420" style="border-radius:50%;cursor:pointer" onclick="tournerRoue()"></canvas>
+        </div>
+        <button id="wheelSpinBtn" class="btn btn-primary" style="font-size:18px;padding:14px 40px;background:linear-gradient(135deg,#e8001e,#a00010)" onclick="tournerRoue()">🎲 Lancer la roue !</button>
+        <div id="wheelResult" style="display:none;background:#111;border:2px solid #ffd600;border-radius:10px;padding:16px 28px;text-align:center;width:100%">
+          <p style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Résultat</p>
+          <p id="wheelResultText" style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:28px;color:#ffd600"></p>
+        </div>
+      </div>
+
+      <!-- GESTION DES SEGMENTS -->
+      <div>
+        <div style="background:#111;border:1px solid #222;border-radius:8px;overflow:hidden">
+          <div style="padding:14px 16px;background:#151515;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:#1e6bff">Segments de la roue</span>
+            <span id="wheelSegCount" style="font-size:12px;color:#555">0 segments</span>
+          </div>
+          <div style="padding:12px">
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <input type="text" id="newSegmentInput" class="search-input" style="margin:0;flex:1" placeholder="Nom du segment..." onkeydown="if(event.key==='Enter')ajouterSegment()">
+              <button class="btn btn-primary btn-sm" onclick="ajouterSegment()">➕</button>
+            </div>
+            <div id="wheelSegmentsList" style="display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- VIEW CLASSEMENT -->
+<div class="view-section" id="view-classement" style="padding:32px">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+      <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase">⚽ Classement individuel</h2>
+      <button class="btn btn-primary" onclick="ouvrirAjouterPoints()">➕ Ajouter des points</button>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+      <select id="classementSaisonFilter" class="search-input" style="margin:0;width:160px" onchange="renderClassement()">
+        <option value="all">Toutes les saisons</option>
+        <option value="1">Saison 1</option>
+        <option value="2">Saison 2</option>
+        <option value="3">Saison 3</option>
+        <option value="4">Saison 4</option>
+        <option value="5">Saison 5</option>
+      </select>
+    </div>
+    <div id="classementContent"></div>
+  </div>
+</div>
+
 <!-- MODAL FIN DE SAISON -->
 <div class="modal-overlay" id="finSaisonModal">
   <div class="modal" style="width:520px">
@@ -294,6 +358,112 @@ window.closePretModal = function() {};
     </div>
     <div class="modal-body" id="finSaisonModalBody" style="display:flex;flex-direction:column;gap:16px">
       <!-- Content injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CREER EVENEMENT -->
+<div class="modal-overlay" id="creerEvenementModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-header" style="border-bottom:2px solid #1e6bff">
+      <h3>🎲 Ajouter un évènement</h3>
+      <button class="modal-close" onclick="document.getElementById('creerEvenementModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Type</label>
+        <select id="evenementType" class="search-input" style="margin:0">
+          <option value="negatif">⚠️ Négatif</option>
+          <option value="positif">✅ Positif</option>
+          <option value="neutre">🎲 Neutre</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Club concerné</label>
+        <select id="evenementClub" class="search-input" style="margin:0">
+          <option value="">— Sélectionner un club —</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Saison</label>
+          <select id="evenementSaison" class="search-input" style="margin:0">
+            <option value="1">Saison 1</option><option value="2">Saison 2</option>
+            <option value="3">Saison 3</option><option value="4">Saison 4</option><option value="5">Saison 5</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Journée</label>
+          <select id="evenementJournee" class="search-input" style="margin:0">
+            <option value="1">J1</option>
+            <option value="2">J2</option>
+            <option value="3">J3</option>
+            <option value="4">J4</option>
+            <option value="5">J5</option>
+            <option value="6">J6</option>
+            <option value="7">J7</option>
+            <option value="8">J8</option>
+            <option value="9">J9</option>
+            <option value="10">J10</option>
+            <option value="11">J11</option>
+            <option value="12">J12</option>
+            <option value="13">J13</option>
+            <option value="14">J14</option>
+            <option value="15">J15</option>
+            <option value="16">J16</option>
+            <option value="17">J17</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Titre</label>
+        <input type="text" id="evenementTitre" class="search-input" style="margin:0" placeholder="Ex: Blessure longue durée">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Description (optionnel)</label>
+        <textarea id="evenementDescription" class="search-input" style="margin:0;height:80px;resize:vertical" placeholder="Détails de l'évènement..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid #222">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('creerEvenementModal').classList.remove('open')">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmerCreerEvenement()">✅ Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AJOUTER POINTS -->
+<div class="modal-overlay" id="ajouterPointsModal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header" style="border-bottom:2px solid #ffd600">
+      <h3>⚽ Ajouter des points</h3>
+      <button class="modal-close" onclick="document.getElementById('ajouterPointsModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Club joueur</label>
+        <select id="pointsClub" class="search-input" style="margin:0">
+          <option value="">— Sélectionner un club —</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Points (négatif possible)</label>
+        <input type="number" id="pointsValeur" class="search-input" style="margin:0" placeholder="Ex: 3 ou -1">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Raison</label>
+        <input type="text" id="pointsRaison" class="search-input" style="margin:0" placeholder="Ex: Victoire J3, Pénalité...">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Saison</label>
+        <select id="pointsSaison" class="search-input" style="margin:0">
+          <option value="1">Saison 1</option><option value="2">Saison 2</option>
+          <option value="3">Saison 3</option><option value="4">Saison 4</option><option value="5">Saison 5</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid #222">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ajouterPointsModal').classList.remove('open')">Annuler</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmerAjouterPoints()">✅ Enregistrer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -736,7 +906,10 @@ const SHARED = {
   nego_ventes: [],
   nego_achats: [],
   totw: [],
-  mercato: {ventes:[], achats:[]}
+  mercato: {ventes:[], achats:[]},
+  evenements: [],
+  classement: [],
+  wheelSegments: []
 };
 let DB = [];
 let selectedClub = null;
@@ -1057,6 +1230,9 @@ async function saveState() {
         nego_achats: SHARED.nego_achats,
         totw: SHARED.totw,
         mercato: SHARED.mercato,
+        evenements: SHARED.evenements,
+        classement: SHARED.classement,
+        wheel_segments: SHARED.wheelSegments,
         updated_at: new Date().toISOString()
       })
     });
@@ -1102,6 +1278,12 @@ async function loadState() {
       if (state.nego_achats) SHARED.nego_achats = state.nego_achats;
       if (state.totw) SHARED.totw = state.totw;
       if (state.mercato && state.mercato.ventes) SHARED.mercato = state.mercato;
+      if (state.evenements) SHARED.evenements = state.evenements;
+      if (state.classement) SHARED.classement = state.classement;
+      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.evenements) SHARED.evenements = state.evenements;
+      if (state.classement) SHARED.classement = state.classement;
+      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
     }
   } catch(e) { console.warn('Erreur chargement state Supabase', e); }
 }
@@ -3653,6 +3835,8 @@ function switchMainView(view) {
   if (view === 'historique') renderHistorique();
   if (view === 'mercato') initMercatoSelects();
   if (view === 'totw') renderTOTW();
+  if (view === 'evenements') { initWheel(); }
+  if (view === 'classement') renderClassement();
 }
 
 function getTOTWData() {
@@ -3845,6 +4029,354 @@ function deleteTOTW(saison, journee) {
 }
 
 
+
+
+// =================== ROUE DU HASARD ===================
+const WHEEL_COLORS = [
+  '#e8001e','#1e6bff','#ffd600','#00c853','#ff6d00','#aa00ff',
+  '#00b0ff','#ff4081','#69f0ae','#ffab40','#40c4ff','#ea80fc',
+  '#b9f6ca','#ff6e40','#82b1ff','#f4ff81'
+];
+
+let wheelSegments = [];
+let wheelSpinning = false;
+let wheelAngle = 0;
+let wheelAnimFrame = null;
+
+function initWheel() {
+  // Load from SHARED
+  wheelSegments = SHARED.wheelSegments || [];
+  renderWheelSegments();
+  drawWheel();
+}
+
+function ajouterSegment() {
+  const input = document.getElementById('newSegmentInput');
+  const val = input.value.trim();
+  if (!val) return;
+  wheelSegments.push({ label: val, color: WHEEL_COLORS[wheelSegments.length % WHEEL_COLORS.length] });
+  input.value = '';
+  SHARED.wheelSegments = wheelSegments;
+  saveState();
+  renderWheelSegments();
+  drawWheel();
+}
+
+function supprimerSegment(idx) {
+  wheelSegments.splice(idx, 1);
+  SHARED.wheelSegments = wheelSegments;
+  saveState();
+  renderWheelSegments();
+  drawWheel();
+}
+
+function renderWheelSegments() {
+  const div = document.getElementById('wheelSegmentsList');
+  const count = document.getElementById('wheelSegCount');
+  if (!div) return;
+  count.textContent = wheelSegments.length + ' segment' + (wheelSegments.length > 1 ? 's' : '');
+  if (wheelSegments.length === 0) {
+    div.innerHTML = '<p style="color:#444;font-size:13px;text-align:center;padding:20px">Aucun segment. Ajoutez des éléments !</p>';
+    return;
+  }
+  div.innerHTML = wheelSegments.map((s, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#1a1a1a;border-radius:6px;border-left:3px solid ${s.color}">
+      <span style="flex:1;font-size:14px;color:#f0f0f0">${s.label}</span>
+      <button onclick="supprimerSegment(${i})" style="background:none;border:none;color:#555;cursor:pointer;font-size:16px;padding:0;line-height:1" title="Supprimer">✕</button>
+    </div>`).join('');
+}
+
+function drawWheel(angle) {
+  const canvas = document.getElementById('wheelCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const r = cx - 10;
+  const currentAngle = angle !== undefined ? angle : wheelAngle;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (wheelSegments.length === 0) {
+    // Empty wheel
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#444';
+    ctx.font = '16px Barlow Condensed';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ajoutez des segments', cx, cy);
+    return;
+  }
+
+  const n = wheelSegments.length;
+  const sliceAngle = (2 * Math.PI) / n;
+
+  // Draw segments
+  for (let i = 0; i < n; i++) {
+    const start = currentAngle + i * sliceAngle;
+    const end = start + sliceAngle;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.closePath();
+    ctx.fillStyle = wheelSegments[i].color;
+    ctx.fill();
+    ctx.strokeStyle = '#0a0a0a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Text
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + sliceAngle / 2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.min(16, 260 / n)}px Barlow Condensed`;
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4;
+    const label = wheelSegments[i].label;
+    const maxLen = 18;
+    ctx.fillText(label.length > maxLen ? label.slice(0, maxLen) + '…' : label, r - 14, 5);
+    ctx.restore();
+  }
+
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+  ctx.fillStyle = '#e8001e';
+  ctx.fill();
+}
+
+function tournerRoue() {
+  if (wheelSpinning || wheelSegments.length === 0) return;
+  wheelSpinning = true;
+
+  const btn = document.getElementById('wheelSpinBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ En train de tourner...';
+  document.getElementById('wheelResult').style.display = 'none';
+
+  // Random full rotations + random stop position
+  const extraSpins = 5 + Math.floor(Math.random() * 5); // 5-9 full rotations
+  const targetSegment = Math.floor(Math.random() * wheelSegments.length);
+  const sliceAngle = (2 * Math.PI) / wheelSegments.length;
+
+  // The arrow points LEFT (at angle PI from right = pointing left)
+  // Arrow is at right side pointing left, so it points at angle PI
+  // Segment i starts at wheelAngle + i*sliceAngle
+  // We want segment center to be at angle PI (pointing arrow = left of center)
+  const arrowAngle = Math.PI;
+  const targetAngle = arrowAngle - (targetSegment * sliceAngle + sliceAngle / 2);
+  const totalRotation = extraSpins * 2 * Math.PI + targetAngle - (wheelAngle % (2 * Math.PI));
+
+  const duration = 4000 + Math.random() * 2000;
+  const startAngle = wheelAngle;
+  const startTime = performance.now();
+
+  function easeOut(t) {
+    return 1 - Math.pow(1 - t, 4);
+  }
+
+  function animate(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const easedT = easeOut(t);
+    wheelAngle = startAngle + totalRotation * easedT;
+    drawWheel(wheelAngle);
+
+    if (t < 1) {
+      wheelAnimFrame = requestAnimationFrame(animate);
+    } else {
+      wheelAngle = startAngle + totalRotation;
+      drawWheel(wheelAngle);
+      wheelSpinning = false;
+      btn.disabled = false;
+      btn.textContent = '🎲 Lancer la roue !';
+
+      // Show result
+      const result = wheelSegments[targetSegment];
+      document.getElementById('wheelResult').style.display = 'block';
+      document.getElementById('wheelResultText').textContent = result.label;
+      document.getElementById('wheelResultText').style.color = result.color;
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+
+// =================== EVENEMENTS ALEATOIRES (ancienne gestion) ===================
+function ouvrirCreerEvenement() {
+  document.getElementById('evenementTitre').value = '';
+  document.getElementById('evenementDescription').value = '';
+  document.getElementById('evenementSaison').value = '1';
+  document.getElementById('evenementJournee').value = '1';
+  document.getElementById('evenementType').value = 'negatif';
+  const sel = document.getElementById('evenementClub');
+  sel.innerHTML = '<option value="">— Sélectionner un club —</option>' +
+    '<optgroup label="Clubs Joueurs">' + Object.keys(CLUBS_JOUEURS).map(c => `<option value="${c}">${c}</option>`).join('') + '</optgroup>' +
+    '<optgroup label="Clubs IA">' + Object.keys(CLUBS_DATA).map(c => `<option value="${c}">${c}</option>`).join('') + '</optgroup>';
+  document.getElementById('creerEvenementModal').classList.add('open');
+}
+
+function confirmerCreerEvenement() {
+  const titre = document.getElementById('evenementTitre').value.trim();
+  const description = document.getElementById('evenementDescription').value.trim();
+  const club = document.getElementById('evenementClub').value;
+  const saison = parseInt(document.getElementById('evenementSaison').value);
+  const journee = parseInt(document.getElementById('evenementJournee').value);
+  const type = document.getElementById('evenementType').value;
+
+  if (!titre || !club) { alert('Remplissez au minimum le titre et le club.'); return; }
+
+  const ev = { id: Date.now(), titre, description, club, saison, journee, type, date: new Date().toISOString() };
+  SHARED.evenements = SHARED.evenements || [];
+  SHARED.evenements.push(ev);
+  saveState();
+  document.getElementById('creerEvenementModal').classList.remove('open');
+  renderEvenements();
+}
+
+function deleteEvenement(id) {
+  if (!confirm('Supprimer cet évènement ?')) return;
+  SHARED.evenements = (SHARED.evenements || []).filter(e => e.id !== id);
+  saveState();
+  renderEvenements();
+}
+
+function renderEvenements() {
+  const div = document.getElementById('evenementsContent');
+  if (!div) return;
+  const evs = SHARED.evenements || [];
+  if (evs.length === 0) {
+    div.innerHTML = '<div class="empty-state" style="padding:60px"><div class="icon">🎲</div><p>Aucun évènement enregistré.</p></div>';
+    return;
+  }
+  // Group by saison
+  const bySaison = {};
+  evs.forEach(e => {
+    if (!bySaison[e.saison]) bySaison[e.saison] = [];
+    bySaison[e.saison].push(e);
+  });
+  div.innerHTML = Object.keys(bySaison).sort((a,b) => b-a).map(saison => {
+    const items = bySaison[saison].sort((a,b) => a.journee - b.journee);
+    return `<div style="margin-bottom:28px">
+      <h3 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:1px;text-transform:uppercase;color:#1e6bff;margin-bottom:12px">Saison ${saison}</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${items.map(e => {
+          const color = e.type === 'positif' ? '#00c853' : e.type === 'negatif' ? '#e8001e' : '#ffa000';
+          const icon = e.type === 'positif' ? '✅' : e.type === 'negatif' ? '⚠️' : '🎲';
+          return `<div style="background:#111;border:1px solid #222;border-left:3px solid ${color};border-radius:6px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+            <span style="font-size:20px;flex-shrink:0">${icon}</span>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#f0f0f0">${e.titre}</span>
+                <span style="font-size:11px;color:#555">J${e.journee} · ${e.club}</span>
+              </div>
+              ${e.description ? `<p style="font-size:13px;color:#888;margin:0">${e.description}</p>` : ''}
+            </div>
+            <button class="trash-btn" onclick="deleteEvenement(${e.id})">🗑️</button>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =================== CLASSEMENT INDIVIDUEL ===================
+function ouvrirAjouterPoints() {
+  // Populate clubs joueurs
+  const sel = document.getElementById('pointsClub');
+  sel.innerHTML = '<option value="">— Sélectionner un club joueur —</option>' +
+    Object.keys(CLUBS_JOUEURS).map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('pointsValeur').value = '';
+  document.getElementById('pointsRaison').value = '';
+  document.getElementById('pointsSaison').value = '1';
+  document.getElementById('ajouterPointsModal').classList.add('open');
+}
+
+function confirmerAjouterPoints() {
+  const club = document.getElementById('pointsClub').value;
+  const valeur = parseInt(document.getElementById('pointsValeur').value);
+  const raison = document.getElementById('pointsRaison').value.trim();
+  const saison = parseInt(document.getElementById('pointsSaison').value);
+
+  if (!club || isNaN(valeur)) { alert('Remplissez tous les champs.'); return; }
+
+  SHARED.classement = SHARED.classement || [];
+  SHARED.classement.push({ id: Date.now(), club, valeur, raison, saison, date: new Date().toISOString() });
+  saveState();
+  document.getElementById('ajouterPointsModal').classList.remove('open');
+  renderClassement();
+}
+
+function deletePoints(id) {
+  if (!confirm('Supprimer cette entrée ?')) return;
+  SHARED.classement = (SHARED.classement || []).filter(e => e.id !== id);
+  saveState();
+  renderClassement();
+}
+
+function renderClassement() {
+  const div = document.getElementById('classementContent');
+  if (!div) return;
+  const saisonFilter = document.getElementById('classementSaisonFilter')?.value || 'all';
+  let entries = SHARED.classement || [];
+  if (saisonFilter !== 'all') entries = entries.filter(e => e.saison == saisonFilter);
+
+  // Aggregate points by club
+  const totaux = {};
+  Object.keys(CLUBS_JOUEURS).forEach(c => { totaux[c] = 0; });
+  entries.forEach(e => { totaux[e.club] = (totaux[e.club] || 0) + e.valeur; });
+
+  const sorted = Object.entries(totaux).sort((a,b) => b[1]-a[1]);
+
+  if (sorted.length === 0) {
+    div.innerHTML = '<div class="empty-state" style="padding:60px"><div class="icon">⚽</div><p>Aucune donnée de classement.</p></div>';
+    return;
+  }
+
+  const medals = ['🥇','🥈','🥉'];
+  const tableau = `<div style="background:#111;border:1px solid #222;border-radius:8px;overflow:hidden;margin-bottom:24px">
+    ${sorted.map(([club, pts], i) => `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1a1a1a;${i===0?'background:rgba(255,214,0,0.05)':''}">
+        <span style="font-size:20px;width:30px;text-align:center">${medals[i] || (i+1)+'.'}</span>
+        <div style="flex:1">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#f0f0f0">${club}</span>
+        </div>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:${pts>0?'#00c853':pts<0?'#e8001e':'#888'}">${pts>0?'+':''}${pts} pts</span>
+      </div>`).join('')}
+  </div>`;
+
+  // Detail log
+  const log = entries.slice().reverse().map(e => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1a1a">
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:${e.valeur>0?'#00c853':'#e8001e'};width:60px;text-align:right">${e.valeur>0?'+':''}${e.valeur}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:#f0f0f0;flex:1">${e.club}</span>
+      <span style="font-size:12px;color:#555;flex:2">${e.raison || '-'}</span>
+      <span style="font-size:11px;color:#444">S${e.saison}</span>
+      <button class="trash-btn" onclick="deletePoints(${e.id})">🗑️</button>
+    </div>`).join('');
+
+  div.innerHTML = tableau + `<div style="border-top:1px solid #222;padding-top:16px"><p style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Détail des points</p>${log || '<p style="color:#444;font-size:13px">Aucune entrée.</p>'}</div>`;
+}
+
+
 // --- INIT ---
 // Groq key loaded from Supabase
 
@@ -3916,6 +4448,12 @@ async function reloadStateFromServer() {
       if (state.nego_achats) SHARED.nego_achats = state.nego_achats;
       if (state.totw) SHARED.totw = state.totw;
       if (state.mercato && state.mercato.ventes) SHARED.mercato = state.mercato;
+      if (state.evenements) SHARED.evenements = state.evenements;
+      if (state.classement) SHARED.classement = state.classement;
+      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.evenements) SHARED.evenements = state.evenements;
+      if (state.classement) SHARED.classement = state.classement;
+      if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
 
     // Refresh current club view if one is selected
     if (selectedClub && CLUBS_DATA[selectedClub]) renderClub(selectedClub);
