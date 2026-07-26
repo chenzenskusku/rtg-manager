@@ -331,14 +331,10 @@ window.closePretModal = function() {};
 
 <!-- VIEW CLASSEMENT -->
 <div class="view-section" id="view-classement" style="padding:32px">
-  <div style="max-width:900px;margin:0 auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <div style="max-width:1100px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
       <h2 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:32px;letter-spacing:2px;text-transform:uppercase">⚽ Classement individuel</h2>
-      <button class="btn btn-primary" onclick="ouvrirAjouterPoints()">➕ Ajouter des points</button>
-    </div>
-    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
       <select id="classementSaisonFilter" class="search-input" style="margin:0;width:160px" onchange="renderClassement()">
-        <option value="all">Toutes les saisons</option>
         <option value="1">Saison 1</option>
         <option value="2">Saison 2</option>
         <option value="3">Saison 3</option>
@@ -346,7 +342,24 @@ window.closePretModal = function() {};
         <option value="5">Saison 5</option>
       </select>
     </div>
-    <div id="classementContent"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <!-- BUTEURS -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #e8001e">
+          <h3 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;letter-spacing:1px;text-transform:uppercase;color:#e8001e">⚽ Buteurs</h3>
+          <button class="btn btn-secondary btn-sm" style="color:#e8001e;border-color:#e8001e" onclick="ouvrirAjouterStat('buteurs')">➕ Ajouter</button>
+        </div>
+        <div id="classementButeurs"></div>
+      </div>
+      <!-- PASSEURS -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #1e6bff">
+          <h3 style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;letter-spacing:1px;text-transform:uppercase;color:#1e6bff">🎯 Passeurs</h3>
+          <button class="btn btn-secondary btn-sm" style="color:#1e6bff;border-color:#1e6bff" onclick="ouvrirAjouterStat('passeurs')">➕ Ajouter</button>
+        </div>
+        <div id="classementPasseurs"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -432,38 +445,26 @@ window.closePretModal = function() {};
   </div>
 </div>
 
-<!-- MODAL AJOUTER POINTS -->
-<div class="modal-overlay" id="ajouterPointsModal">
-  <div class="modal" style="width:420px">
-    <div class="modal-header" style="border-bottom:2px solid #ffd600">
-      <h3>⚽ Ajouter des points</h3>
-      <button class="modal-close" onclick="document.getElementById('ajouterPointsModal').classList.remove('open')">✕</button>
+<!-- MODAL AJOUTER STAT -->
+<div class="modal-overlay" id="ajouterStatModal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header" id="ajouterStatHeader">
+      <h3 id="ajouterStatTitle">➕ Ajouter</h3>
+      <button class="modal-close" onclick="document.getElementById('ajouterStatModal').classList.remove('open')">✕</button>
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
       <div>
-        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Club joueur</label>
-        <select id="pointsClub" class="search-input" style="margin:0">
-          <option value="">— Sélectionner un club —</option>
-        </select>
+        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Rechercher un joueur</label>
+        <input type="text" id="statJoueurSearch" class="search-input" style="margin:0" placeholder="Nom du joueur..." oninput="searchStatJoueur(this.value)">
+        <div id="statJoueurResults" style="margin-top:6px;max-height:150px;overflow-y:auto"></div>
       </div>
-      <div>
-        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Points (négatif possible)</label>
-        <input type="number" id="pointsValeur" class="search-input" style="margin:0" placeholder="Ex: 3 ou -1">
-      </div>
-      <div>
-        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Raison</label>
-        <input type="text" id="pointsRaison" class="search-input" style="margin:0" placeholder="Ex: Victoire J3, Pénalité...">
-      </div>
-      <div>
-        <label style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:600;display:block;margin-bottom:6px">Saison</label>
-        <select id="pointsSaison" class="search-input" style="margin:0">
-          <option value="1">Saison 1</option><option value="2">Saison 2</option>
-          <option value="3">Saison 3</option><option value="4">Saison 4</option><option value="5">Saison 5</option>
-        </select>
+      <div id="statJoueurSelected" style="display:none;background:#1a1a1a;border-radius:6px;padding:10px 14px">
+        <div id="statJoueurSelectedName" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#f0f0f0"></div>
+        <div id="statJoueurSelectedInfo" style="font-size:12px;color:#555;margin-top:2px"></div>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:8px;border-top:1px solid #222">
-        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ajouterPointsModal').classList.remove('open')">Annuler</button>
-        <button class="btn btn-primary btn-sm" onclick="confirmerAjouterPoints()">✅ Enregistrer</button>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ajouterStatModal').classList.remove('open')">Annuler</button>
+        <button class="btn btn-primary btn-sm" id="ajouterStatConfirmBtn" onclick="confirmerAjouterStat()">✅ Ajouter</button>
       </div>
     </div>
   </div>
@@ -910,7 +911,8 @@ const SHARED = {
   mercato: {ventes:[], achats:[]},
   evenements: [],
   classement: [],
-  wheelSegments: []
+  wheelSegments: [],
+  stats: { buteurs: [], passeurs: [] }
 };
 let DB = [];
 let selectedClub = null;
@@ -1234,6 +1236,7 @@ async function saveState() {
         evenements: SHARED.evenements,
         classement: SHARED.classement,
         wheel_segments: SHARED.wheelSegments,
+        stats: SHARED.stats,
         updated_at: new Date().toISOString()
       })
     });
@@ -1282,9 +1285,11 @@ async function loadState() {
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.stats) SHARED.stats = state.stats;
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.stats) SHARED.stats = state.stats;
     }
   } catch(e) { console.warn('Erreur chargement state Supabase', e); }
 }
@@ -3504,6 +3509,12 @@ function executerFinSaison() {
     });
   });
 
+  // Reset stats buteurs/passeurs
+  if (SHARED.stats) {
+    SHARED.stats.buteurs = [];
+    SHARED.stats.passeurs = [];
+  }
+
   // Clubs IA
   Object.keys(CLUBS_DATA).forEach(clubName => {
     CLUBS_DATA[clubName].effectif.forEach(p => {
@@ -3837,7 +3848,7 @@ function switchMainView(view) {
   if (view === 'mercato') initMercatoSelects();
   if (view === 'totw') renderTOTW();
   if (view === 'evenements') { initWheel(); }
-  if (view === 'classement') renderClassement();
+  if (view === 'classement') { renderClassement(); }
 }
 
 function getTOTWData() {
@@ -4303,7 +4314,185 @@ function renderEvenements() {
   }).join('');
 }
 
+
 // =================== CLASSEMENT INDIVIDUEL ===================
+let currentStatType = 'buteurs';
+let statSelectedPlayer = null;
+
+function getClubLogo(clubName) {
+  return clubLogos[clubName] || null;
+}
+
+function getPlayerClub(nom) {
+  // Check clubs joueurs
+  for (const club of Object.keys(CLUBS_JOUEURS)) {
+    if (CLUBS_JOUEURS[club].effectif.find(p => p.nom === nom)) return { club, type: 'joueur' };
+  }
+  // Check clubs IA
+  for (const club of Object.keys(CLUBS_DATA)) {
+    if (getEffectif(club).find(p => p.nom === nom)) return { club, type: 'ia' };
+  }
+  return { club: 'Libre', type: 'libre' };
+}
+
+function ouvrirAjouterStat(type) {
+  currentStatType = type;
+  statSelectedPlayer = null;
+  document.getElementById('statJoueurSearch').value = '';
+  document.getElementById('statJoueurResults').innerHTML = '';
+  document.getElementById('statJoueurSelected').style.display = 'none';
+  const isButeur = type === 'buteurs';
+  document.getElementById('ajouterStatTitle').textContent = isButeur ? '⚽ Ajouter un buteur' : '🎯 Ajouter un passeur';
+  document.getElementById('ajouterStatHeader').style.borderBottomColor = isButeur ? '#e8001e' : '#1e6bff';
+  document.getElementById('ajouterStatModal').classList.add('open');
+}
+
+function searchStatJoueur(query) {
+  const q = query.trim().toLowerCase();
+  const resultsDiv = document.getElementById('statJoueurResults');
+  if (q.length < 2) { resultsDiv.innerHTML = ''; return; }
+
+  const allPlayers = [];
+  // Clubs joueurs
+  Object.keys(CLUBS_JOUEURS).forEach(club => {
+    CLUBS_JOUEURS[club].effectif.forEach(p => {
+      if (!p._pretFrom) allPlayers.push({ nom: p.nom, poste: p.poste, overall: p.overall, club, custom: p._custom });
+    });
+  });
+  // Clubs IA
+  Object.keys(CLUBS_DATA).forEach(club => {
+    getEffectif(club).forEach(p => {
+      allPlayers.push({ nom: p.nom, poste: p.poste, overall: getOvr(club, p.nom, p.overall), club, custom: false });
+    });
+  });
+  // DB
+  DB.filter(p => p.nom.toLowerCase().includes(q)).slice(0, 5).forEach(p => {
+    if (!allPlayers.find(a => a.nom === p.nom)) {
+      allPlayers.push({ nom: p.nom, poste: p.poste, overall: p.ovr, club: 'Libre', custom: false });
+    }
+  });
+
+  const results = allPlayers.filter(p => p.nom.toLowerCase().includes(q)).slice(0, 10);
+  if (results.length === 0) { resultsDiv.innerHTML = '<div class="no-results">Aucun joueur trouvé</div>'; return; }
+
+  resultsDiv.innerHTML = '<div class="search-results">' + results.map(p =>
+    `<div class="search-result-item" onclick="selectStatJoueur(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div>
+        <div class="player-name" style="color:${p.custom?'#ffd600':'#f0f0f0'}">${p.nom}${p.custom?' ⭐':''}</div>
+        <div class="player-meta">${p.poste} · ${p.club}</div>
+      </div>
+      <span class="player-ovr ${ovrClass(p.overall)}" style="background:none">${p.overall}</span>
+    </div>`
+  ).join('') + '</div>';
+}
+
+function selectStatJoueur(player) {
+  statSelectedPlayer = player;
+  document.getElementById('statJoueurSearch').value = player.nom;
+  document.getElementById('statJoueurResults').innerHTML = '';
+  document.getElementById('statJoueurSelected').style.display = 'block';
+  document.getElementById('statJoueurSelectedName').textContent = player.nom + (player.custom ? ' ⭐' : '');
+  document.getElementById('statJoueurSelectedInfo').textContent = player.poste + ' · ' + player.club;
+}
+
+function confirmerAjouterStat() {
+  if (!statSelectedPlayer) { alert('Sélectionnez un joueur.'); return; }
+  const saison = parseInt(document.getElementById('classementSaisonFilter').value);
+  const type = currentStatType;
+
+  if (!SHARED.stats) SHARED.stats = { buteurs: [], passeurs: [] };
+  if (!SHARED.stats[type]) SHARED.stats[type] = [];
+
+  // Check if player already exists for this saison
+  const existing = SHARED.stats[type].find(s => s.nom === statSelectedPlayer.nom && s.saison === saison);
+  if (existing) {
+    alert(statSelectedPlayer.nom + ' est déjà dans le classement pour cette saison.');
+    return;
+  }
+
+  const clubInfo = getPlayerClub(statSelectedPlayer.nom);
+  SHARED.stats[type].push({
+    nom: statSelectedPlayer.nom,
+    poste: statSelectedPlayer.poste,
+    club: statSelectedPlayer.club !== 'Libre' ? statSelectedPlayer.club : clubInfo.club,
+    custom: statSelectedPlayer.custom || false,
+    saison,
+    count: 0
+  });
+
+  saveState();
+  document.getElementById('ajouterStatModal').classList.remove('open');
+  renderClassement();
+}
+
+function modifierStat(type, nom, saison, delta) {
+  if (!SHARED.stats || !SHARED.stats[type]) return;
+  const entry = SHARED.stats[type].find(s => s.nom === nom && s.saison === saison);
+  if (!entry) return;
+  entry.count = Math.max(0, entry.count + delta);
+  saveState();
+  renderClassement();
+}
+
+function supprimerStat(type, nom, saison) {
+  if (!confirm('Retirer ' + nom + ' du classement ?')) return;
+  SHARED.stats[type] = SHARED.stats[type].filter(s => !(s.nom === nom && s.saison === saison));
+  saveState();
+  renderClassement();
+}
+
+function renderClassement() {
+  const saison = parseInt(document.getElementById('classementSaisonFilter')?.value || '1');
+  renderStatTable('buteurs', saison);
+  renderStatTable('passeurs', saison);
+}
+
+function renderStatTable(type, saison) {
+  const divId = type === 'buteurs' ? 'classementButeurs' : 'classementPasseurs';
+  const div = document.getElementById(divId);
+  if (!div) return;
+
+  const stats = ((SHARED.stats || {})[type] || []).filter(s => s.saison === saison).sort((a,b) => b.count - a.count);
+  const label = type === 'buteurs' ? 'But' : 'Passe';
+  const medals = ['🥇','🥈','🥉'];
+
+  if (stats.length === 0) {
+    div.innerHTML = `<div style="text-align:center;padding:30px;color:#444;font-size:13px">Aucun joueur. Cliquez sur ➕ Ajouter.</div>`;
+    return;
+  }
+
+  div.innerHTML = `<div style="background:#111;border:1px solid #222;border-radius:8px;overflow:hidden">
+    <div style="display:grid;grid-template-columns:32px 1fr auto auto;gap:0;padding:8px 14px;background:#151515;border-bottom:1px solid #222">
+      <span></span>
+      <span style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:1px">Joueur</span>
+      <span style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:1px;text-align:center;padding:0 10px">${label}s</span>
+      <span></span>
+    </div>
+    ${stats.map((s, i) => {
+      const logo = getClubLogo(s.club);
+      const isColor = type === 'buteurs' ? '#e8001e' : '#1e6bff';
+      return `<div style="display:grid;grid-template-columns:32px 1fr auto auto;align-items:center;gap:0;padding:10px 14px;border-bottom:1px solid #1a1a1a;${i===0?'background:rgba(255,214,0,0.04)':''}">
+        <span style="font-size:16px">${medals[i] || (i+1)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${logo ? `<img src="${logo}" style="width:22px;height:22px;object-fit:contain;border-radius:50%;flex-shrink:0">` : `<div style="width:22px;height:22px;border-radius:50%;background:#1a1a1a;border:1px solid #333;flex-shrink:0"></div>`}
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:${s.custom?'#ffd600':'#f0f0f0'}">${s.nom}${s.custom?' ⭐':''}</div>
+            <div style="font-size:11px;color:#555">${s.club}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:0 10px">
+          <button onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},-1)" style="background:#1a1a1a;border:1px solid #333;color:#aaa;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">−</button>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:${isColor};min-width:32px;text-align:center">${s.count}</span>
+          <button onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},1)" style="background:#1a1a1a;border:1px solid #333;color:#aaa;width:22px;height:22px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center">+</button>
+        </div>
+        <button onclick="supprimerStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison})" style="background:none;border:none;color:#333;cursor:pointer;font-size:14px;padding:4px" title="Retirer">🗑️</button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+
+// =================== CLASSEMENT (ancien) ===================
 function ouvrirAjouterPoints() {
   // Populate clubs joueurs
   const sel = document.getElementById('pointsClub');
@@ -4456,9 +4645,11 @@ async function reloadStateFromServer() {
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.stats) SHARED.stats = state.stats;
       if (state.evenements) SHARED.evenements = state.evenements;
       if (state.classement) SHARED.classement = state.classement;
       if (state.wheel_segments) SHARED.wheelSegments = state.wheel_segments;
+      if (state.stats) SHARED.stats = state.stats;
 
     // Refresh current club view if one is selected
     if (selectedClub && CLUBS_DATA[selectedClub]) renderClub(selectedClub);
