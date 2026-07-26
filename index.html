@@ -4425,7 +4425,7 @@ async function confirmerAjouterStat() {
     club: (statSelectedPlayer.club && statSelectedPlayer.club !== 'Libre') ? statSelectedPlayer.club : clubInfo.club,
     custom: statSelectedPlayer.custom || false,
     saison: saison,
-    count: 0
+    count: 1
   };
   SHARED.stats[type].push(entry);
 
