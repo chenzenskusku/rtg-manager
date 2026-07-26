@@ -4543,49 +4543,7 @@ function deletePoints(id) {
   renderClassement();
 }
 
-function renderClassement() {
-  const div = document.getElementById('classementContent');
-  if (!div) return;
-  const saisonFilter = document.getElementById('classementSaisonFilter')?.value || 'all';
-  let entries = SHARED.classement || [];
-  if (saisonFilter !== 'all') entries = entries.filter(e => e.saison == saisonFilter);
 
-  // Aggregate points by club
-  const totaux = {};
-  Object.keys(CLUBS_JOUEURS).forEach(c => { totaux[c] = 0; });
-  entries.forEach(e => { totaux[e.club] = (totaux[e.club] || 0) + e.valeur; });
-
-  const sorted = Object.entries(totaux).sort((a,b) => b[1]-a[1]);
-
-  if (sorted.length === 0) {
-    div.innerHTML = '<div class="empty-state" style="padding:60px"><div class="icon">⚽</div><p>Aucune donnée de classement.</p></div>';
-    return;
-  }
-
-  const medals = ['🥇','🥈','🥉'];
-  const tableau = `<div style="background:#111;border:1px solid #222;border-radius:8px;overflow:hidden;margin-bottom:24px">
-    ${sorted.map(([club, pts], i) => `
-      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #1a1a1a;${i===0?'background:rgba(255,214,0,0.05)':''}">
-        <span style="font-size:20px;width:30px;text-align:center">${medals[i] || (i+1)+'.'}</span>
-        <div style="flex:1">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#f0f0f0">${club}</span>
-        </div>
-        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:${pts>0?'#00c853':pts<0?'#e8001e':'#888'}">${pts>0?'+':''}${pts} pts</span>
-      </div>`).join('')}
-  </div>`;
-
-  // Detail log
-  const log = entries.slice().reverse().map(e => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1a1a1a">
-      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:${e.valeur>0?'#00c853':'#e8001e'};width:60px;text-align:right">${e.valeur>0?'+':''}${e.valeur}</span>
-      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:#f0f0f0;flex:1">${e.club}</span>
-      <span style="font-size:12px;color:#555;flex:2">${e.raison || '-'}</span>
-      <span style="font-size:11px;color:#444">S${e.saison}</span>
-      <button class="trash-btn" onclick="deletePoints(${e.id})">🗑️</button>
-    </div>`).join('');
-
-  div.innerHTML = tableau + `<div style="border-top:1px solid #222;padding-top:16px"><p style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Détail des points</p>${log || '<p style="color:#444;font-size:13px">Aucune entrée.</p>'}</div>`;
-}
 
 
 // --- INIT ---
