@@ -1514,7 +1514,7 @@ function toggleAllPostes(clubName, show) {
 
 function setSort(col, clubName) {
   if (sortState.col === col) { sortState.dir *= -1; }
-  else { sortState.col = col; sortState.dir = (col === 'nom' || col === 'poste') ? 1 : -1; }
+  else { sortState.col = col; sortState.dir = col === 'nom' || col === 'poste' ? 1 : -1; }
   if (CLUBS_JOUEURS[clubName]) renderClubJoueur(clubName);
   else renderClub(clubName);
 }
@@ -1614,7 +1614,7 @@ function switchTab(tab) {
 
 // --- EFFECTIF ---
 const sortState = { col: 'ovr', dir: -1 };
-const POS_ORDER = {'G':0,'DD':1,'DC':2,'DG':3,'MDC':4,'MD':5,'MG':6,'MC':7,'MOC':8,'AD':9,'AG':10,'BU':11,'AT':12,'ST':13};
+const POS_ORDER = {'G':0,'DD':1,'DC':2,'DG':3,'MDC':4,'MC':5,'MG':6,'MD':7,'MOC':8,'AG':9,'AD':10,'BU':11,'AT':12,'ST':13};
 const posFilter = {}; // { clubName: Set of visible postes }
 
 
