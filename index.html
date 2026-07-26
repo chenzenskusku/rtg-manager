@@ -64,6 +64,7 @@
   th{background:#151515;padding:10px 14px;text-align:left;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#666;border-bottom:1px solid #222;}
   td{padding:12px 14px;border-bottom:1px solid #1a1a1a;vertical-align:middle;}
   tr:hover td{background:var(--surface2);}
+  @keyframes fadeIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
   .ovr-badge{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;letter-spacing:-0.5px;}
   .ovr-high{background:#003a00;color:#ffffff;border:1px solid #00c853;}
   .ovr-mid{background:#3a2a00;color:#ffffff;border:1px solid #ffa000;}
@@ -296,14 +297,14 @@ window.closePretModal = function() {};
       <!-- ROUE -->
       <div style="display:flex;flex-direction:column;align-items:center;gap:20px">
         <div style="position:relative">
-          <!-- Flèche indicatrice -->
-          <div style="position:absolute;top:50%;right:-18px;transform:translateY(-50%);width:0;height:0;border-top:14px solid transparent;border-bottom:14px solid transparent;border-right:24px solid #e8001e;z-index:10;filter:drop-shadow(0 0 4px rgba(232,0,30,0.6))"></div>
+          <!-- Flèche indicatrice en haut, pointant vers le bas -->
+          <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:24px solid #e8001e;z-index:10;filter:drop-shadow(0 0 4px rgba(232,0,30,0.6))"></div>
           <canvas id="wheelCanvas" width="420" height="420" style="border-radius:50%;cursor:pointer" onclick="tournerRoue()"></canvas>
         </div>
         <button id="wheelSpinBtn" class="btn btn-primary" style="font-size:18px;padding:14px 40px;background:linear-gradient(135deg,#e8001e,#a00010)" onclick="tournerRoue()">🎲 Lancer la roue !</button>
-        <div id="wheelResult" style="display:none;background:#111;border:2px solid #ffd600;border-radius:10px;padding:16px 28px;text-align:center;width:100%">
-          <p style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Résultat</p>
-          <p id="wheelResultText" style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:28px;color:#ffd600"></p>
+        <div id="wheelResult" style="display:none;background:#111;border:2px solid #ffd600;border-radius:10px;padding:20px 28px;text-align:center;width:100%;animation:fadeIn 0.4s ease">
+          <p style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">🎲 Résultat</p>
+          <p id="wheelResultText" style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:36px;margin:0"></p>
         </div>
       </div>
 
@@ -4176,13 +4177,17 @@ function tournerRoue() {
   const targetSegment = Math.floor(Math.random() * wheelSegments.length);
   const sliceAngle = (2 * Math.PI) / wheelSegments.length;
 
-  // The arrow points LEFT (at angle PI from right = pointing left)
-  // Arrow is at right side pointing left, so it points at angle PI
-  // Segment i starts at wheelAngle + i*sliceAngle
-  // We want segment center to be at angle PI (pointing arrow = left of center)
-  const arrowAngle = Math.PI;
-  const targetAngle = arrowAngle - (targetSegment * sliceAngle + sliceAngle / 2);
-  const totalRotation = extraSpins * 2 * Math.PI + targetAngle - (wheelAngle % (2 * Math.PI));
+  // Arrow is at TOP, pointing down = angle -PI/2 (or 3PI/2)
+  // We want the CENTER of targetSegment to land at the top (-PI/2)
+  // Segment i center is at: wheelAngle + i*sliceAngle + sliceAngle/2
+  // We need: wheelAngle_final + targetSegment*sliceAngle + sliceAngle/2 = -PI/2 + k*2PI
+  const arrowAngle = -Math.PI / 2;
+  const currentNorm = wheelAngle % (2 * Math.PI);
+  const targetCenter = arrowAngle - (targetSegment * sliceAngle + sliceAngle / 2);
+  let diff = targetCenter - currentNorm;
+  // Normalize diff to be positive
+  while (diff <= 0) diff += 2 * Math.PI;
+  const totalRotation = extraSpins * 2 * Math.PI + diff;
 
   const duration = 4000 + Math.random() * 2000;
   const startAngle = wheelAngle;
