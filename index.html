@@ -1175,11 +1175,23 @@ async function refreshFromServer() {
   setSyncStatus('saving');
   document.getElementById('syncLabel').textContent = 'Chargement...';
   await reloadStateFromServer();
+  reRenderActiveView();
   document.getElementById('syncLabel').textContent = 'En ligne';
   setSyncStatus('ok');
-  // Re-render current view
-  if (selectedClub) renderClub(selectedClub);
-  if (selectedClubJoueur) renderClubJoueur(selectedClubJoueur);
+}
+
+function reRenderActiveView() {
+  if (selectedClub && CLUBS_DATA[selectedClub]) renderClub(selectedClub);
+  if (selectedClubJoueur && CLUBS_JOUEURS[selectedClubJoueur]) renderClubJoueur(selectedClubJoueur);
+  const activeView = document.querySelector('.view-section.active');
+  if (activeView) {
+    const viewId = activeView.id.replace('view-', '');
+    if (viewId === 'historique') renderHistorique();
+    if (viewId === 'mercato') { renderMercatoHistorique(); initMercatoSelects(); }
+    if (viewId === 'totw') renderTOTW();
+    if (viewId === 'classement') renderClassement();
+    if (viewId === 'evenements') renderEvenements();
+  }
 }
 
 // Smart polling - only reload if someone else changed the data
@@ -1196,10 +1208,9 @@ async function smartPoll() {
     if (!data || !data[0]) return;
     const serverUpdatedAt = data[0].updated_at;
     if (_lastKnownUpdatedAt && serverUpdatedAt !== _lastKnownUpdatedAt) {
-      // Someone else updated - reload silently
+      // Someone else updated - reload and re-render
       await reloadStateFromServer();
-      if (selectedClub) renderClub(selectedClub);
-      if (selectedClubJoueur) renderClubJoueur(selectedClubJoueur);
+      reRenderActiveView();
       document.getElementById('syncLabel').textContent = '🔄 Mis à jour';
       setTimeout(() => { document.getElementById('syncLabel').textContent = 'En ligne'; }, 2000);
     }
@@ -4721,7 +4732,7 @@ document.getElementById('mainContent').innerHTML = '<div class="empty-state"><di
   });
 
   // Smart polling toutes les 5 secondes
-  setInterval(smartPoll, 5000);
+  setInterval(smartPoll, 2000);
 })();
 
 // Event delegation for trash buttons
