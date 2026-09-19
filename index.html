@@ -124,18 +124,23 @@
 <script>
 // Stubs pour les boutons HTML qui se chargent avant le reste du script
 window.openAddClub = function(type) { window._pendingAddClub = type; };
-window.formatBudget = function(budget) {
+function formatBudget(budget) {
   const b = parseInt(String(budget || 0).replace(/\s/g,'')) || 0;
   if (b >= 1000000) return (b/1000000).toFixed(1).replace('.0','') + 'M€';
   if (b >= 1000) return Math.round(b/1000) + 'K€';
   return b + '€';
-};
-window.formatValeur = function(v) {
+}
+function formatValeur(v) {
   if (!v || v === 0) return '—';
   if (v >= 1000000) return (v/1000000).toFixed(1).replace('.0','') + 'M€';
   if (v >= 1000) return Math.round(v/1000) + 'K€';
   return v + '€';
-};
+}
+function ovrClass(ovr) {
+  if (ovr >= 82) return 'ovr-high';
+  if (ovr >= 75) return 'ovr-mid';
+  return 'ovr-low';
+}
 window.switchMainView = function(v) { window._pendingView = v; };
 window.closeModal = function() {};
 window.closeAddJoueurModal = function() {};
@@ -914,19 +919,6 @@ window.closePretModal = function() {};
 </div>
 
 <script>
-
-function formatValeur(v) {
-  if (!v || v === 0) return '—';
-  if (v >= 1000000) return (v/1000000).toFixed(1).replace('.0','') + 'M€';
-  if (v >= 1000) return Math.round(v/1000) + 'K€';
-  return v + '€';
-}
-function formatBudget(budget) {
-  const b = parseInt(String(budget || 0).replace(/\s/g,'')) || 0;
-  if (b >= 1000000) return (b/1000000).toFixed(1).replace('.0','') + 'M€';
-  if (b >= 1000) return Math.round(b/1000) + 'K€';
-  return b + '€';
-}
 
 const CLUBS_DATA = {};
 const ORIGINAL_CLUBS = Object.keys(CLUBS_DATA);
