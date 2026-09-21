@@ -1072,6 +1072,69 @@ function reRenderActive() {
   if (id==='classement') renderClassement();
 }
 
+async function applyRealtimeChange(table, type, record, old_record) {
+  if (!record) return;
+
+  if (table === 'clubs_ia') {
+    const name = record.id;
+    if (type === 'DELETE') {
+      delete CLUBS_IA[name];
+    } else {
+      CLUBS_IA[name] = record.data;
+    }
+    renderSidebars();
+    // If this club is currently selected, re-render content
+    if (selectedClub && selectedClub.name === name && selectedClub.type === 'ia') {
+      if (type === 'DELETE') {
+        selectedClub = null;
+        document.getElementById('main-content').innerHTML = '<div class="empty" style="height:100%;justify-content:center"><div class="empty-icon">🏟️</div><div class="empty-text">Sélectionne un club</div></div>';
+      } else {
+        renderClubContent();
+      }
+    }
+  }
+
+  else if (table === 'clubs_joueurs_table') {
+    const name = record.id;
+    if (type === 'DELETE') {
+      delete CLUBS_J[name];
+    } else {
+      CLUBS_J[name] = record.data;
+    }
+    renderSidebars();
+    if (selectedClub && selectedClub.name === name && selectedClub.type === 'joueur') {
+      if (type === 'DELETE') {
+        selectedClub = null;
+        document.getElementById('main-content').innerHTML = '<div class="empty" style="height:100%;justify-content:center"><div class="empty-icon">🏟️</div><div class="empty-text">Sélectionne un club</div></div>';
+      } else {
+        renderClubContent();
+      }
+    }
+  }
+
+  else if (table === 'shared_data') {
+    const key = record.key;
+    const value = record.value;
+    // Update SHARED in memory
+    switch(key) {
+      case 'logos': Object.assign(logoStore, value||{}); renderSidebars(); if (selectedClub) renderClubContent(); break;
+      case 'historique': SHARED.historique = value||[]; if (isViewActive('historique')) renderHistorique(); break;
+      case 'nego_ventes': SHARED.nego_ventes = value||[]; if (isViewActive('historique')) renderHistoTab('ventes'); break;
+      case 'nego_achats': SHARED.nego_achats = value||[]; if (isViewActive('historique')) renderHistoTab('achats'); break;
+      case 'totw': SHARED.totw = value||[]; if (isViewActive('totw')) renderTOTW(); break;
+      case 'mercato': if (value?.ventes) { SHARED.mercato = value; if (isViewActive('mercato')) renderMercatoHistorique(); } break;
+      case 'stats': if (value) { SHARED.stats = value; if (isViewActive('classement')) renderClassement(); } break;
+      case 'wheel_segments': SHARED.wheel_segments = value||[]; if (isViewActive('evenements')) { renderWheelSegments(); drawWheel(); } break;
+      case 'groq_key': if (value) localStorage.setItem('rtg_groq_key', typeof value==='string'?value:value+''); break;
+    }
+  }
+}
+
+function isViewActive(viewId) {
+  const el = document.getElementById('view-'+viewId);
+  return el && el.classList.contains('active');
+}
+
 function initRealtime() {
   const wsUrl = SUPABASE_URL.replace('https://','wss://') + '/realtime/v1/websocket?apikey=' + SUPABASE_KEY + '&vsn=1.0.0';
   let ws, hb;
@@ -1088,12 +1151,16 @@ function initRealtime() {
     ws.onmessage = async (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.event==='postgres_changes' || (msg.payload?.data?.type==='UPDATE'||msg.payload?.data?.type==='INSERT'||msg.payload?.data?.type==='DELETE')) {
-          if (_isSaving) return;
-          const msSince = _lastSaveAt ? Date.now()-new Date(_lastSaveAt).getTime() : 9999;
-          if (msSince < 4000) return;
-          document.getElementById('update-banner').style.display = 'flex';
-        }
+        const payload = msg.payload;
+        if (!payload?.data) return;
+        const { type, table, record, old_record } = payload.data;
+        if (!type || !table) return;
+        if (_isSaving) return;
+        const msSince = _lastSaveAt ? Date.now()-new Date(_lastSaveAt).getTime() : 9999;
+        if (msSince < 4000) return;
+
+        // Apply change surgically without full reload
+        await applyRealtimeChange(table, type, record, old_record);
       } catch(err) {}
     };
     ws.onclose = () => { clearInterval(hb); setSyncStatus('error'); setTimeout(connect,3000); };
