@@ -625,6 +625,22 @@ select.search-input{cursor:pointer}
         <label class="form-label">Nom du coach</label>
         <input type="text" id="add-club-coach" class="search-input" placeholder="Ex: Zinedine Zidane">
       </div>
+      <div id="add-club-generer-row" style="display:none">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <input type="checkbox" id="add-club-generer" style="width:16px;height:16px" onchange="toggleGenererEffectif()">
+          <label for="add-club-generer" style="font-size:13px;cursor:pointer">⚡ Générer l'effectif automatiquement</label>
+        </div>
+        <div id="generer-options" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div class="form-row">
+            <div><label class="form-label">Note minimum</label><input type="number" id="gen-min" class="search-input" min="50" max="99" value="65" placeholder="65"></div>
+            <div><label class="form-label">Note maximum</label><input type="number" id="gen-max" class="search-input" min="50" max="99" value="85" placeholder="85"></div>
+          </div>
+          <div class="form-row">
+            <div><label class="form-label">Moyenne min</label><input type="number" id="gen-moy-min" class="search-input" min="50" max="99" value="70" placeholder="70"></div>
+            <div><label class="form-label">Moyenne max</label><input type="number" id="gen-moy-max" class="search-input" min="50" max="99" value="78" placeholder="78"></div>
+          </div>
+        </div>
+      </div>
       <div>
         <label class="form-label">Budget (M€)</label>
         <input type="number" step="0.5" id="add-club-budget" class="search-input" placeholder="Ex: 100" value="100">
@@ -1232,6 +1248,9 @@ function openAddClub(type) {
   document.getElementById('modal-add-club-title').textContent = type==='ia' ? '🤖 Nouveau club IA' : '👤 Nouveau club joueur';
   document.getElementById('add-club-style-row').style.display = type==='ia' ? 'block' : 'none';
   document.getElementById('add-club-coach-row').style.display = type==='joueur' ? 'block' : 'none';
+  document.getElementById('add-club-generer-row').style.display = type==='joueur' ? 'block' : 'none';
+  document.getElementById('add-club-generer').checked = false;
+  document.getElementById('generer-options').style.display = 'none';
   document.getElementById('add-club-name').value = '';
   document.getElementById('add-club-budget').value = '100';
   openModal('modal-add-club');
@@ -1248,7 +1267,21 @@ async function confirmerAddClub() {
   } else {
     if (CLUBS_J[name]) { alert('Ce club existe déjà.'); return; }
     const coach = document.getElementById('add-club-coach').value.trim();
-    CLUBS_J[name] = {budget, coach, effectif: [], logoUrl: null};
+    const generer = document.getElementById('add-club-generer').checked;
+    let effectif = [];
+    if (generer) {
+      const minOvr = parseInt(document.getElementById('gen-min').value) || 65;
+      const maxOvr = parseInt(document.getElementById('gen-max').value) || 85;
+      const moyMin = parseInt(document.getElementById('gen-moy-min').value) || 70;
+      const moyMax = parseInt(document.getElementById('gen-moy-max').value) || 78;
+      if (minOvr > maxOvr) { alert('Note minimum doit être ≤ note maximum.'); return; }
+      if (moyMin > moyMax) { alert('Moyenne minimum doit être ≤ moyenne maximum.'); return; }
+      effectif = genererEffectif(minOvr, maxOvr, moyMin, moyMax);
+      if (effectif.length < 21) {
+        if (!confirm(`Seulement ${effectif.length}/25 joueurs trouvés avec ces critères. Continuer quand même ?`)) return;
+      }
+    }
+    CLUBS_J[name] = {budget, coach, effectif, logoUrl: null};
     await saveState(['clubs_j']);
   }
   closeModal('modal-add-club');
@@ -1305,6 +1338,89 @@ function renderClubContent() {
     <div class="effectif-wrap">
       ${renderEffectifTable(name, type)}
     </div>`;
+}
+
+function toggleGenererEffectif() {
+  const checked = document.getElementById('add-club-generer').checked;
+  document.getElementById('generer-options').style.display = checked ? 'flex' : 'none';
+}
+
+function genererEffectif(minOvr, maxOvr, moyMin, moyMax) {
+  // Composition cible
+  const composition = [
+    {poste:'G', count:3}, {poste:'DD', count:2}, {poste:'DC', count:4},
+    {poste:'DG', count:2}, {poste:'MDC', count:2}, {poste:'MC', count:2},
+    {poste:'MOC', count:2}, {poste:'AG', count:2}, {poste:'AD', count:2},
+    {poste:'BU', count:2}
+  ];
+
+  // Get already used player names across all clubs
+  const usedNames = new Set();
+  Object.values(CLUBS_J).forEach(c => c.effectif.forEach(p => usedNames.add(p.nom)));
+  Object.values(CLUBS_IA).forEach(c => c.effectif.forEach(p => usedNames.add(p.nom)));
+
+  // Filter DB by ovr range and not already used
+  const available = DB.filter(p =>
+    p.ovr >= minOvr && p.ovr <= maxOvr && !usedNames.has(p.nom)
+  );
+
+  const effectif = [];
+  const usedInThis = new Set();
+
+  for (const {poste, count} of composition) {
+    // Find players matching this position (primary or secondary)
+    const candidates = available.filter(p =>
+      !usedInThis.has(p.nom) &&
+      (p.poste === poste || (p.pos2 && p.pos2.split(',').map(s=>s.trim()).includes(poste)))
+    );
+
+    // Sort randomly but weighted toward target average
+    const targetAvg = (moyMin + moyMax) / 2;
+    candidates.sort((a, b) => Math.abs(a.ovr - targetAvg) - Math.abs(b.ovr - targetAvg));
+
+    // Add some randomness - shuffle top candidates
+    const pool = candidates.slice(0, Math.min(candidates.length, count * 4));
+    pool.sort(() => Math.random() - 0.5);
+
+    let added = 0;
+    for (const p of pool) {
+      if (added >= count) break;
+      effectif.push({
+        nom: p.nom, poste: p.poste, pos2: p.pos2||'',
+        age: p.age, overall: p.ovr, potentiel: p.pot,
+        valeur: calcValeur(p.ovr, p.age, p.pot),
+        contrat: Math.floor(Math.random()*3)+1,
+        pret: null, _pretFrom: null, _custom: false
+      });
+      usedInThis.add(p.nom);
+      added++;
+    }
+
+    if (added < count) {
+      // Fallback: relax position constraint
+      const fallback = available.filter(p => !usedInThis.has(p.nom)).slice(0, count - added);
+      fallback.forEach(p => {
+        effectif.push({
+          nom: p.nom, poste: p.poste, pos2: p.pos2||'',
+          age: p.age, overall: p.ovr, potentiel: p.pot,
+          valeur: calcValeur(p.ovr, p.age, p.pot),
+          contrat: Math.floor(Math.random()*3)+1,
+          pret: null, _pretFrom: null, _custom: false
+        });
+        usedInThis.add(p.nom);
+      });
+    }
+  }
+
+  // Check average is within range
+  if (effectif.length > 0) {
+    const avg = effectif.reduce((s,p) => s+p.overall, 0) / effectif.length;
+    if (avg < moyMin || avg > moyMax) {
+      console.warn(`Moyenne générée ${avg.toFixed(1)} hors fourchette [${moyMin}-${moyMax}]`);
+    }
+  }
+
+  return effectif;
 }
 
 async function deleteClub(name, type) {
