@@ -630,7 +630,7 @@ select.search-input{cursor:pointer}
           <input type="checkbox" id="add-club-generer" style="width:16px;height:16px" onchange="toggleGenererEffectif()">
           <label for="add-club-generer" style="font-size:13px;cursor:pointer">⚡ Générer l'effectif automatiquement</label>
         </div>
-        <div id="generer-options" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px">
+        <div id="generer-options" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;flex-direction:column;gap:10px">
           <div class="form-row">
             <div><label class="form-label">Note minimum</label><input type="number" id="gen-min" class="search-input" min="50" max="99" value="65" placeholder="65"></div>
             <div><label class="form-label">Note maximum</label><input type="number" id="gen-max" class="search-input" min="50" max="99" value="85" placeholder="85"></div>
@@ -1342,48 +1342,41 @@ function renderClubContent() {
 
 function toggleGenererEffectif() {
   const checked = document.getElementById('add-club-generer').checked;
-  document.getElementById('generer-options').style.display = checked ? 'flex' : 'none';
+  document.getElementById('generer-options').style.display = checked ? 'block' : 'none';
 }
 
 function genererEffectif(minOvr, maxOvr, moyMin, moyMax) {
-  // Composition cible
   const composition = [
     {poste:'G', count:3}, {poste:'DD', count:2}, {poste:'DC', count:4},
     {poste:'DG', count:2}, {poste:'MDC', count:2}, {poste:'MC', count:2},
     {poste:'MOC', count:2}, {poste:'AG', count:2}, {poste:'AD', count:2},
     {poste:'BU', count:2}
   ];
+  const totalPlayers = composition.reduce((s,c) => s+c.count, 0); // 25
 
-  // Get already used player names across all clubs
+  // Get used names
   const usedNames = new Set();
   Object.values(CLUBS_J).forEach(c => c.effectif.forEach(p => usedNames.add(p.nom)));
   Object.values(CLUBS_IA).forEach(c => c.effectif.forEach(p => usedNames.add(p.nom)));
 
-  // Filter DB by ovr range and not already used
-  const available = DB.filter(p =>
-    p.ovr >= minOvr && p.ovr <= maxOvr && !usedNames.has(p.nom)
-  );
+  // Available players in range
+  const available = DB.filter(p => p.ovr >= minOvr && p.ovr <= maxOvr && !usedNames.has(p.nom));
 
+  // Strategy: pick players randomly from the full range, 
+  // then adjust until average is in [moyMin, moyMax]
   const effectif = [];
   const usedInThis = new Set();
 
+  // First pass: fill by position with random selection from full range
   for (const {poste, count} of composition) {
-    // Find players matching this position (primary or secondary)
     const candidates = available.filter(p =>
       !usedInThis.has(p.nom) &&
       (p.poste === poste || (p.pos2 && p.pos2.split(',').map(s=>s.trim()).includes(poste)))
     );
-
-    // Sort randomly but weighted toward target average
-    const targetAvg = (moyMin + moyMax) / 2;
-    candidates.sort((a, b) => Math.abs(a.ovr - targetAvg) - Math.abs(b.ovr - targetAvg));
-
-    // Add some randomness - shuffle top candidates
-    const pool = candidates.slice(0, Math.min(candidates.length, count * 4));
-    pool.sort(() => Math.random() - 0.5);
-
+    // Shuffle completely randomly
+    candidates.sort(() => Math.random() - 0.5);
     let added = 0;
-    for (const p of pool) {
+    for (const p of candidates) {
       if (added >= count) break;
       effectif.push({
         nom: p.nom, poste: p.poste, pos2: p.pos2||'',
@@ -1395,11 +1388,12 @@ function genererEffectif(minOvr, maxOvr, moyMin, moyMax) {
       usedInThis.add(p.nom);
       added++;
     }
-
+    // Fallback if not enough positional players
     if (added < count) {
-      // Fallback: relax position constraint
-      const fallback = available.filter(p => !usedInThis.has(p.nom)).slice(0, count - added);
-      fallback.forEach(p => {
+      const fallback = available.filter(p => !usedInThis.has(p.nom));
+      fallback.sort(() => Math.random() - 0.5);
+      for (const p of fallback) {
+        if (added >= count) break;
         effectif.push({
           nom: p.nom, poste: p.poste, pos2: p.pos2||'',
           age: p.age, overall: p.ovr, potentiel: p.pot,
@@ -1408,18 +1402,48 @@ function genererEffectif(minOvr, maxOvr, moyMin, moyMax) {
           pret: null, _pretFrom: null, _custom: false
         });
         usedInThis.add(p.nom);
-      });
+        added++;
+      }
     }
   }
 
-  // Check average is within range
-  if (effectif.length > 0) {
+  if (effectif.length === 0) return effectif;
+
+  // Second pass: adjust average by swapping players
+  // to get within [moyMin, moyMax]
+  const maxIterations = 200;
+  for (let iter = 0; iter < maxIterations; iter++) {
     const avg = effectif.reduce((s,p) => s+p.overall, 0) / effectif.length;
-    if (avg < moyMin || avg > moyMax) {
-      console.warn(`Moyenne générée ${avg.toFixed(1)} hors fourchette [${moyMin}-${moyMax}]`);
-    }
+    if (avg >= moyMin && avg <= moyMax) break;
+
+    // If avg too high: swap a high player for a lower one
+    // If avg too low: swap a low player for a higher one
+    const tooHigh = avg > moyMax;
+    effectif.sort((a,b) => tooHigh ? b.overall - a.overall : a.overall - b.overall);
+    const toReplace = effectif[0]; // highest if too high, lowest if too low
+
+    // Find replacement from available pool not already used
+    const replacements = available.filter(p =>
+      !usedInThis.has(p.nom) &&
+      (tooHigh ? p.ovr < toReplace.overall : p.ovr > toReplace.overall)
+    );
+    if (!replacements.length) break;
+    replacements.sort(() => Math.random() - 0.5);
+    const replacement = replacements[0];
+
+    usedInThis.delete(toReplace.nom);
+    usedInThis.add(replacement.nom);
+    effectif[0] = {
+      nom: replacement.nom, poste: replacement.poste, pos2: replacement.pos2||'',
+      age: replacement.age, overall: replacement.ovr, potentiel: replacement.pot,
+      valeur: calcValeur(replacement.ovr, replacement.age, replacement.pot),
+      contrat: Math.floor(Math.random()*3)+1,
+      pret: null, _pretFrom: null, _custom: false
+    };
   }
 
+  const finalAvg = effectif.reduce((s,p) => s+p.overall, 0) / effectif.length;
+  console.log(`Effectif généré: ${effectif.length} joueurs, moyenne ${finalAvg.toFixed(1)}`);
   return effectif;
 }
 
