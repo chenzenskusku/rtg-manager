@@ -138,7 +138,7 @@ header::after{
 }
 .club-avatar:hover .avatar-crayon{display:flex}
 .club-avatar img{width:100%;height:100%;object-fit:contain;border-radius:50%;color-scheme:light}
-.club-name{font-family:var(--font-display);font-weight:700;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.club-name{font-family:var(--font-body);font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .club-budget{font-size:11px;color:var(--muted)}
 .btn-add-club{
   width:22px;height:22px;border-radius:50%;border:1px solid var(--accent);
@@ -182,8 +182,8 @@ header::after{
 table{width:100%;border-collapse:collapse;margin-top:16px}
 th{
   background:var(--surface);padding:9px 12px;text-align:left;
-  font-family:var(--font-display);font-size:11px;font-weight:700;
-  letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
+  font-family:var(--font-body);font-size:11px;font-weight:600;
+  letter-spacing:1px;text-transform:uppercase;color:var(--muted);
   border-bottom:1px solid var(--border);white-space:nowrap;
 }
 th.sortable{cursor:pointer;user-select:none}
@@ -198,7 +198,7 @@ tr.expired td:first-child{border-left:2px solid var(--red)}
 .ovr-badge{
   display:inline-flex;align-items:center;justify-content:center;
   width:36px;height:36px;border-radius:var(--radius);
-  font-family:var(--font-display);font-weight:900;font-size:17px;color:#fff;
+  font-family:var(--font-display);font-weight:700;font-size:16px;color:#fff;
 }
 .ovr-high{background:#003a00;border:1px solid var(--green)}
 .ovr-mid{background:#3a2a00;border:1px solid var(--yellow)}
@@ -217,7 +217,7 @@ tr.expired td:first-child{border-left:2px solid var(--red)}
 /* ── POS TAGS ── */
 .pos-tag{
   display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;
-  font-family:var(--font-display);font-weight:800;font-size:13px;
+  font-family:var(--font-body);font-weight:600;font-size:12px;
   border:1px solid var(--border);color:var(--muted);margin-right:3px;
 }
 .pos-main{color:#fff}
@@ -227,7 +227,7 @@ tr.expired td:first-child{border-left:2px solid var(--red)}
 .pos-att{background:#003a8c;border-color:#1e6bff;color:#fff}
 
 /* ── PLAYER NAME ── */
-.player-nom{font-family:var(--font-display);font-weight:700;font-size:16px}
+.player-nom{font-family:var(--font-body);font-weight:600;font-size:15px}
 .player-nom.custom{color:var(--yellow)}
 .player-nom.expired{color:var(--red)}
 
@@ -951,18 +951,25 @@ function posCls(pos) {
   return '';
 }
 const POS_COLORS_MAP = {'G':'#b84c00','DD':'#7a6500','DC':'#7a6500','DG':'#7a6500','MDC':'#006b2a','MC':'#006b2a','MG':'#006b2a','MD':'#006b2a','MOC':'#006b2a','AG':'#003a8c','AD':'#003a8c','BU':'#003a8c'};
-const DB_ID_MAP = {};
-DB.forEach(p => { if (p.id) DB_ID_MAP[p.nom] = p.id; });
 function playerPhoto(nom, size=28, poste='') {
-  const playerId = DB_ID_MAP[nom];
-  const initials = nom.split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
-  const bg = POS_COLORS_MAP[poste] || '#1a1a2e';
-  if (!playerId) {
-    return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:1px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:${Math.round(size*0.38)}px;color:#fff;letter-spacing:-1px">${initials}</div>`;
-  }
-  const photoUrl = `https://cdn.sofifa.net/players/${playerId}/25_120.png`;
-  const s = size + 'px';
-  return `<img src="${photoUrl}" style="width:${s};height:${s};border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);flex-shrink:0;background:${bg}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\"width:${s};height:${s};border-radius:50%;background:${bg};border:1px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:${Math.round(size*0.38)}px;color:#fff\">${initials}</div>')" alt="">`;
+  const initials = nom.split(' ').filter(Boolean).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+  const colors = {
+    'G':   {bg:'#7a2800', border:'#ff6a1a'},
+    'DD':  {bg:'#5a4800', border:'#ffd600'},
+    'DC':  {bg:'#5a4800', border:'#ffd600'},
+    'DG':  {bg:'#5a4800', border:'#ffd600'},
+    'MDC': {bg:'#004d1a', border:'#00c853'},
+    'MC':  {bg:'#004d1a', border:'#00c853'},
+    'MG':  {bg:'#004d1a', border:'#00c853'},
+    'MD':  {bg:'#004d1a', border:'#00c853'},
+    'MOC': {bg:'#004d1a', border:'#00c853'},
+    'AG':  {bg:'#002a6e', border:'#4d8aff'},
+    'AD':  {bg:'#002a6e', border:'#4d8aff'},
+    'BU':  {bg:'#002a6e', border:'#4d8aff'},
+  };
+  const c = colors[poste] || {bg:'#1a1a2e', border:'#444'};
+  const fs = Math.round(size * 0.36);
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${c.bg};border:2px solid ${c.border};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:${fs}px;color:#fff;letter-spacing:0px;box-shadow:0 0 6px ${c.border}44">${initials}</div>`;
 }
 function roundTo05(v) { return Math.round(v/500000)*500000; }
 function genId() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
