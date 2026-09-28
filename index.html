@@ -957,10 +957,12 @@ function playerPhoto(nom, size=28, poste='') {
   const playerId = DB_ID_MAP[nom];
   const initials = nom.split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
   const bg = POS_COLORS_MAP[poste] || '#1a1a2e';
-  const fallback = `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:1px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:${Math.round(size*0.38)}px;color:#fff;letter-spacing:-1px">${initials}</div>`;
-  if (!playerId) return fallback;
+  if (!playerId) {
+    return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:1px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:${Math.round(size*0.38)}px;color:#fff;letter-spacing:-1px">${initials}</div>`;
+  }
   const photoUrl = `https://cdn.sofifa.net/players/${playerId}/25_120.png`;
-  return `<img src="${photoUrl}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);flex-shrink:0;background:${bg}" onerror="this.outerHTML='${fallback.replace(/'/g, "\'")}'" alt="${initials}">`;
+  const s = size + 'px';
+  return `<img src="${photoUrl}" style="width:${s};height:${s};border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,.1);flex-shrink:0;background:${bg}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=\"width:${s};height:${s};border-radius:50%;background:${bg};border:1px solid rgba(255,255,255,.15);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Barlow Condensed,sans-serif;font-weight:900;font-size:${Math.round(size*0.38)}px;color:#fff\">${initials}</div>')" alt="">`;
 }
 function roundTo05(v) { return Math.round(v/500000)*500000; }
 function genId() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
