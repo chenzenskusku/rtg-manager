@@ -1036,6 +1036,17 @@ async function upsertShared(key, value) {
 async function saveClubIA(name) { await upsertRow('clubs_ia', name, CLUBS_IA[name]); }
 async function saveClubJ(name) { await upsertRow('clubs_joueurs_table', name, CLUBS_J[name]); }
 
+async function saveOneClub(clubName, type) {
+  _isSaving = true;
+  setSyncStatus('saving');
+  try {
+    if (type === 'ia') await saveClubIA(clubName);
+    else await saveClubJ(clubName);
+    _lastSaveAt = new Date().toISOString();
+    setSyncStatus('ok');
+  } catch(e) { setSyncStatus('error'); } finally { _isSaving = false; }
+}
+
 async function saveState(what) {
   _saveQueue = _saveQueue.then(async () => {
     _isSaving = true;
@@ -1348,7 +1359,7 @@ function openLogoUpload(clubName) {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       logoStore[clubName] = ev.target.result;
-      await saveState(['logos']);
+      await upsertShared('logos', logoStore);
       renderSidebars();
       if (selectedClub && selectedClub.name === clubName) renderClubContent();
     };
@@ -1540,13 +1551,17 @@ async function confirmerEditClub() {
   if (type==='ia') {
     store[name].budget = budget;
     store[name].style = document.getElementById('add-club-style').value;
+    const finalName = newName !== name ? newName : name;
     if (newName !== name) { store[newName] = {...store[name]}; delete store[name]; if (logoStore[name]) { logoStore[newName]=logoStore[name]; delete logoStore[name]; } }
-    await saveState(['clubs_ia','logos']);
+    await saveOneClub(finalName, 'ia');
+    if (newName !== name) { await fetch(`${SUPABASE_URL}/rest/v1/clubs_ia?id=eq.${encodeURIComponent(name)}`, {method:'DELETE', headers:SUPA_H}); upsertShared('logos', logoStore); }
   } else {
     store[name].budget = budget;
     store[name].coach = document.getElementById('add-club-coach').value.trim();
+    const finalName = newName !== name ? newName : name;
     if (newName !== name) { store[newName] = {...store[name]}; delete store[name]; if (logoStore[name]) { logoStore[newName]=logoStore[name]; delete logoStore[name]; } }
-    await saveState(['clubs_j','logos']);
+    await saveOneClub(finalName, 'joueur');
+    if (newName !== name) { await fetch(`${SUPABASE_URL}/rest/v1/clubs_joueurs_table?id=eq.${encodeURIComponent(name)}`, {method:'DELETE', headers:SUPA_H}); upsertShared('logos', logoStore); }
   }
   if (selectedClub && selectedClub.name===name) selectedClub.name = newName;
   _editClubData = null;
@@ -1691,7 +1706,7 @@ async function changeOvr(clubName, idx, type, delta) {
   if (newOvr < 50 || newOvr > p.potentiel) return;
   p.overall = newOvr;
   p.valeur = calcValeur(newOvr, p.age, p.potentiel);
-  await saveState([type==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(clubName, type);
   renderClubContent();
 }
 
@@ -1703,7 +1718,7 @@ async function changePot(clubName, idx, type, delta) {
   if (newPot < p.overall || newPot > 99) return;
   p.potentiel = newPot;
   p.valeur = calcValeur(p.overall, p.age, newPot);
-  await saveState([type==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(clubName, type);
   renderClubContent();
 }
 
@@ -1718,7 +1733,7 @@ async function removeJoueur(clubName, idx, type) {
     await saveState(['clubs_j']);
   }
   store[clubName].effectif.splice(idx, 1);
-  await saveState([type==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(clubName, type);
   renderClubContent();
   renderSidebars();
 }
@@ -1727,7 +1742,7 @@ async function libererJoueur(clubName, idx, type) {
   if (!confirm('Libérer ce joueur sans compensation ?')) return;
   const store = type==='ia' ? CLUBS_IA : CLUBS_J;
   store[clubName].effectif.splice(idx, 1);
-  await saveState([type==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(clubName, type);
   renderClubContent();
 }
 
@@ -1765,7 +1780,7 @@ async function confirmerContrat() {
   if (cout > budget) { alert('Budget insuffisant !'); return; }
   store[clubName].effectif[idx].contrat = newAnnees;
   store[clubName].budget = String(budget - cout);
-  await saveState([type==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(clubName, type);
   closeModal('modal-contrat');
   renderClubContent();
   contratData = null;
@@ -1849,7 +1864,7 @@ async function confirmerAddJoueur() {
     valeur: calcValeur(pendingJoueur.ovr, pendingJoueur.age, pendingJoueur.pot),
     contrat, pret: null, _pretFrom: null, _custom: false
   });
-  await saveState([addJoueurType==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(addJoueurClub, addJoueurType);
   closeModal('modal-add-joueur');
   renderClubContent();
   renderSidebars();
@@ -1887,7 +1902,7 @@ async function confirmerCreerJoueur() {
     nom: fullName, poste, pos2, age, overall: ovr, potentiel: pot,
     valeur: calcValeur(ovr, age, pot), contrat, pret: null, _pretFrom: null, _custom: true
   });
-  await saveState([creerJoueurType==='ia'?'clubs_ia':'clubs_j']);
+  await saveOneClub(creerJoueurClub, creerJoueurType);
   closeModal('modal-creer-joueur');
   renderClubContent();
   renderSidebars();
