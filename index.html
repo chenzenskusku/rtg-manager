@@ -2310,9 +2310,9 @@ async function submitVenteReneg() {
 
   // Check rupture probability
   const ecart = (montant - venteState.offreIA) / venteState.offreIA;
-  const bonusRound = venteState.round * 0.12;
-  const probRupture = Math.min(0.9, 0.15 + ecart * 1.5 + bonusRound);
-  if (Math.random() < probRupture && venteState.round >= 2) {
+  const bonusRound = venteState.round * 0.05;
+  const probRupture = Math.min(0.7, Math.max(0, ecart - 0.15) * 1.2 + bonusRound);
+  if (Math.random() < probRupture && venteState.round >= 3) {
     venteState.logEtapes.push({type:'rupture', label:'Rupture', texte:`Rupture après ${venteState.round} rounds`, montant:null});
     saveNegoLog('ventes', venteState, 'rupture');
     zone.innerHTML = `<div class="result-box fade-in">
@@ -2512,9 +2512,9 @@ async function submitAchatReneg() {
   achatState.logEtapes.push({type:'vendeur', label:`Contre R${achatState.round}`, texte:'Contre-proposition acheteur', montant});
 
   const ecartPct = (achatState.offreIA - montant) / achatState.offreIA;
-  const bonusRound = achatState.round * 0.12;
-  const probRupture = Math.min(0.9, 0.15 + ecartPct * 2 + bonusRound);
-  if (Math.random() < probRupture && achatState.round >= 1) {
+  const bonusRound = achatState.round * 0.05;
+  const probRupture = Math.min(0.7, Math.max(0, ecartPct - 0.15) * 1.2 + bonusRound);
+  if (Math.random() < probRupture && achatState.round >= 2) {
     achatState.logEtapes.push({type:'rupture', label:'Rupture', texte:'Vendeur se retire', montant:null});
     saveNegoLog('achats', achatState, 'rupture');
     document.getElementById('achat-nego-zone').innerHTML = `<div class="result-box fade-in">
