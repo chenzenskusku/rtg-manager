@@ -1231,6 +1231,41 @@ function isViewActive(viewId) {
   return el && el.classList.contains('active');
 }
 
+function checkDoublons() {
+  const seen = {}; // nom -> [clubs]
+  for (const c of Object.keys(CLUBS_J)) {
+    CLUBS_J[c].effectif.forEach(p => {
+      if (p._pretFrom) return; // prêts OK
+      if (!seen[p.nom]) seen[p.nom] = [];
+      seen[p.nom].push({club: c, type: 'joueur'});
+    });
+  }
+  for (const c of Object.keys(CLUBS_IA)) {
+    CLUBS_IA[c].effectif.forEach(p => {
+      if (!seen[p.nom]) seen[p.nom] = [];
+      seen[p.nom].push({club: c, type: 'ia'});
+    });
+  }
+  const doublons = Object.entries(seen).filter(([nom, clubs]) => clubs.length > 1);
+  if (!doublons.length) return;
+
+  const msg = doublons.map(([nom, clubs]) =>
+    `⚠️ ${nom} : ${clubs.map(c => c.club).join(' + ')}`
+  ).join('\n');
+
+  // Show warning banner
+  let banner = document.getElementById('doublons-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'doublons-banner';
+    banner.style.cssText = 'background:#3a0000;border-bottom:2px solid var(--red);padding:10px 20px;font-size:13px;color:var(--red);font-family:var(--font-display);font-weight:700;white-space:pre-line;cursor:pointer';
+    banner.onclick = () => banner.remove();
+    document.getElementById('main-nav').after(banner);
+  }
+  banner.textContent = '⚠️ DOUBLONS DÉTECTÉS (cliquer pour fermer)\n' + msg;
+  console.warn('Doublons:', doublons);
+}
+
 function renderOffres() {
   const div = document.getElementById('offres-content');
   if (!div) return;
@@ -3136,6 +3171,7 @@ async function executerFinSaison() {
     document.getElementById('pret-montant-row').style.display = this.checked ? 'block' : 'none';
   });
 
+  checkDoublons();
   renderSidebars();
   drawWheel();
   renderWheelSegments();
