@@ -872,6 +872,17 @@ select.search-input{cursor:pointer}
   </div>
 </div>
 
+<!-- HISTO CLUB -->
+<div class="modal-overlay" id="modal-histo-club">
+  <div class="modal" style="width:600px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-histo-club-title">📜 Historique</span>
+      <button class="modal-close" onclick="closeModal('modal-histo-club')">✕</button>
+    </div>
+    <div class="modal-body" id="modal-histo-club-body" style="max-height:500px;overflow-y:auto;padding:0"></div>
+  </div>
+</div>
+
 <!-- FIN DE SAISON -->
 <div class="modal-overlay" id="modal-fin-saison">
   <div class="modal" style="width:520px">
@@ -1231,6 +1242,77 @@ function isViewActive(viewId) {
   return el && el.classList.contains('active');
 }
 
+function openHistoClub(clubName) {
+  document.getElementById('modal-histo-club-title').textContent = `📜 ${clubName} — Historique`;
+  const body = document.getElementById('modal-histo-club-body');
+
+  const transfers = SHARED.historique.filter(t => t.clubDepart === clubName || t.clubArrivee === clubName);
+  const ventes = SHARED.mercato?.ventes?.filter(v => v.clubDepart === clubName) || [];
+  const achats = SHARED.mercato?.achats?.filter(a => a.clubArrivee === clubName) || [];
+
+  // Merge all into one list with direction
+  const all = [
+    ...transfers.map(t => ({
+      date: t.date, joueur: t.joueur, ovr: t.ovr,
+      direction: t.clubDepart === clubName ? 'out' : 'in',
+      contre: t.clubDepart === clubName ? t.clubArrivee : t.clubDepart,
+      montant: t.montant, source: 'transfert'
+    })),
+    ...ventes.map(v => ({
+      date: v.date, joueur: v.joueur, ovr: v.ovr,
+      direction: 'out', contre: 'Club IA', montant: v.montant, source: 'vente_ia'
+    })),
+    ...achats.map(a => ({
+      date: a.date, joueur: a.joueur, ovr: a.ovr,
+      direction: 'in', contre: a.clubDepart, montant: a.montant, source: 'achat_ia'
+    }))
+  ].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  // Remove duplicates (transfer + mercato can have same entry)
+  const seen = new Set();
+  const unique = all.filter(t => {
+    const key = t.joueur + t.date.slice(0,10);
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  if (!unique.length) {
+    body.innerHTML = '<div class="empty" style="padding:40px"><div class="empty-icon">📭</div><div class="empty-text">Aucun transfert</div></div>';
+  } else {
+    body.innerHTML = `<table style="width:100%">
+      <thead><tr>
+        <th style="padding:10px 14px">Date</th>
+        <th>Joueur</th>
+        <th>Mouvement</th>
+        <th>Montant</th>
+      </tr></thead>
+      <tbody>${unique.map(t => {
+        const isOut = t.direction === 'out';
+        const arrow = isOut ? '📤' : '📥';
+        const color = isOut ? 'var(--red)' : 'var(--green)';
+        const sign = isOut ? '−' : '+';
+        return `<tr>
+          <td style="padding:10px 14px;color:var(--muted);font-size:12px">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${playerPhoto(t.joueur, 28, '')}
+              <div>
+                <div style="font-family:var(--font-display);font-weight:700;font-size:15px">${t.joueur}</div>
+                <div style="font-size:11px;color:var(--muted)">OVR ${t.ovr||'—'}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span style="color:${color};font-size:13px">${arrow} ${isOut ? 'Vers' : 'De'} ${t.contre}</span>
+          </td>
+          <td style="font-family:var(--font-display);font-weight:700;font-size:16px;color:${color};white-space:nowrap">${sign} ${fmtVal(t.montant)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  }
+  openModal('modal-histo-club');
+}
+
 function checkDoublons() {
   const seen = {}; // nom -> [clubs]
   for (const c of Object.keys(CLUBS_J)) {
@@ -1581,6 +1663,7 @@ function renderClubContent() {
       <div class="club-header-actions">
         <button class="btn btn-secondary btn-sm" onclick="openAddJoueur('${name.replace(/'/g,"\\'")}','${type}')">➕ Ajouter</button>
         ${type==='joueur' ? `<button class="btn btn-secondary btn-sm" style="color:var(--yellow);border-color:var(--yellow)" onclick="openCreerJoueur('${name.replace(/'/g,"\\'")}','${type}')">⭐ Créer</button>` : ''}
+        <button class="btn btn-secondary btn-sm" style="color:var(--accent)" onclick="openHistoClub('${name.replace(/\'/g,"\\\\\'")}')" >📜 Historique</button>
         <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="deleteClub('${name.replace(/'/g,"\\'")}','${type}')">🗑️</button>
       </div>
     </div>
