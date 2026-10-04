@@ -2213,18 +2213,20 @@ async function confirmerTransfert() {
     CLUBS_J[destName].effectif.push(newPlayer);
     const dBudget = parseInt(String(CLUBS_J[destName].budget||0).replace(/\s/g,'')) || 0;
     CLUBS_J[destName].budget = String(Math.max(0, dBudget - montant));
-    await saveState(['clubs_j']);
+    await saveOneClub(clubName, 'joueur');
+    await saveOneClub(destName, 'joueur');
   } else {
     if (!CLUBS_IA[destName]) return;
     CLUBS_IA[destName].effectif.push(newPlayer);
     const dBudget = parseInt(String(CLUBS_IA[destName].budget||0).replace(/\s/g,'')) || 0;
     CLUBS_IA[destName].budget = String(Math.max(0, dBudget - montant));
-    await saveState(['clubs_ia', 'clubs_j']);
+    await saveOneClub(clubName, 'joueur');
+    await saveOneClub(destName, 'ia');
   }
 
   // Save historique
   SHARED.historique.push({date:new Date().toISOString(), joueur:p.nom, ovr:p.overall, clubDepart:clubName, clubArrivee:destName, montant});
-  await saveState(['historique']);
+  await upsertShared('historique', SHARED.historique);
 
   closeModal('modal-transfert');
   if (selectedClub && selectedClub.name===clubName) renderClubContent();
