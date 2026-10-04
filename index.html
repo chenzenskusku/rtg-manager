@@ -1289,8 +1289,9 @@ function openHistoClub(clubName) {
       <tbody>${unique.map(t => {
         const isOut = t.direction === 'out';
         const arrow = isOut ? '📤' : '📥';
-        const color = isOut ? 'var(--red)' : 'var(--green)';
-        const sign = isOut ? '−' : '+';
+        // Selling = money in (+), buying = money out (-)
+        const color = isOut ? 'var(--green)' : 'var(--red)';
+        const sign = isOut ? '+' : '−';
         return `<tr>
           <td style="padding:10px 14px;color:var(--muted);font-size:12px">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
           <td>
