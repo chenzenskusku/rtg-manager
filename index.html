@@ -1347,38 +1347,108 @@ async function fetchSofifaPlayer() {
     return;
   }
 
-  // Extract player ID from URL
-  const parts = url.replace('https://sofifa.com/player/','').split('/');
+  const parts = url.replace('https://sofifa.com/player/','').replace('http://sofifa.com/player/','').split('/');
   const playerId = parts[0];
   if (!playerId) { res.innerHTML = '<p style="color:var(--red);font-size:13px">❌ ID introuvable dans le lien.</p>'; return; }
 
-  res.innerHTML = '<div class="loading"><div class="spinner"></div> Récupération...</div>';
+  res.innerHTML = '<div class="loading"><div class="spinner"></div> Récupération de la page SoFIFA...</div>';
 
-  // Use Groq to extract player data by asking it to parse the sofifa page
-  // Since we can't fetch sofifa directly, ask user to paste the page content
-  // Better: use the ID to show a form with pre-filled data
-  res.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:8px">
-    <p style="font-size:13px;color:var(--muted);margin-bottom:10px">ID SoFIFA détecté : <strong style="color:var(--accent)">${playerId}</strong>. Remplis les infos manuellement :</p>
-    <div class="form-row">
-      <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" placeholder="K. Mbappé"></div>
-      <div><label class="form-label">Poste</label>
-        <select id="sf-poste" class="search-input">
-          <option>G</option><option>DD</option><option>DC</option><option>DG</option>
-          <option>MDC</option><option>MC</option><option>MG</option><option>MD</option>
-          <option>MOC</option><option>AG</option><option>AD</option><option>BU</option>
-        </select>
+  try {
+    // Use allorigins proxy to bypass CORS
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const r = await fetch(proxyUrl, {timeout: 15000});
+    const data = await r.json();
+    const pageHtml = data.contents;
+
+    if (!pageHtml || pageHtml.length < 100) throw new Error('Page vide');
+
+    // Parse player data from HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(pageHtml, 'text/html');
+
+    // Extract name
+    let nom = doc.querySelector('h1')?.textContent?.trim() || '';
+    nom = nom.replace(/^\d+\s+/, '').trim();
+
+    // Extract positions
+    const posSpans = [...doc.querySelectorAll('span.pos')].map(s => s.textContent.trim());
+
+    // Map sofifa positions to our format
+    const posMap = {'GK':'G','CB':'DC','LB':'DG','RB':'DD','LWB':'DG','RWB':'DD','CDM':'MDC','CM':'MC','CAM':'MOC','LM':'MG','RM':'MD','LW':'AG','RW':'AD','ST':'BU','CF':'BU','RF':'AD','LF':'AG'};
+    const poste = posMap[posSpans[0]] || posSpans[0] || 'BU';
+    const pos2 = posSpans.slice(1).map(p => posMap[p]||p).filter(Boolean).join(', ');
+
+    // Extract OVR, POT, age from meta or spans
+    const allText = doc.body?.textContent || '';
+
+    // OVR/POT usually in specific spans
+    let ovr = 0, pot = 0, age = 0;
+    doc.querySelectorAll('span.bp3-tag').forEach(el => {
+      const v = parseInt(el.textContent.trim());
+      if (!isNaN(v) && v >= 50 && v <= 99) {
+        if (!ovr) ovr = v;
+        else if (!pot) pot = v;
+      }
+    });
+
+    // Fallback: look for number patterns in specific areas
+    if (!ovr) {
+      const ovrMatch = allText.match(/Overall\D{0,10}(\d{2})/);
+      if (ovrMatch) ovr = parseInt(ovrMatch[1]);
+    }
+    if (!pot) {
+      const potMatch = allText.match(/Potential\D{0,10}(\d{2})/);
+      if (potMatch) pot = parseInt(potMatch[1]);
+    }
+
+    // Age
+    const ageMatch = allText.match(/(\d{2})\s*years?\s*old|Age\D{0,5}(\d{2})/i);
+    if (ageMatch) age = parseInt(ageMatch[1] || ageMatch[2]);
+
+    // Show prefilled form for validation
+    res.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:8px">
+      <p style="font-size:12px;color:var(--green);margin-bottom:10px">✅ Données récupérées — vérifie et corrige si besoin :</p>
+      <div class="form-row">
+        <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" value="${nom}" placeholder="K. Mbappé"></div>
+        <div><label class="form-label">Poste</label>
+          <select id="sf-poste" class="search-input">
+            ${['G','DD','DC','DG','MDC','MC','MG','MD','MOC','AG','AD','BU'].map(p=>`<option${p===poste?' selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
       </div>
-    </div>
-    <div class="form-row">
-      <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" placeholder="AG, AD"></div>
-      <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" placeholder="25"></div>
-    </div>
-    <div class="form-row">
-      <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" placeholder="91"></div>
-      <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" placeholder="95"></div>
-    </div>
-    <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('${playerId}')">✅ Ajouter à la base</button>
-  </div>`;
+      <div class="form-row">
+        <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" value="${pos2}" placeholder="AG, AD"></div>
+        <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" value="${age||''}" placeholder="25"></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" value="${ovr||''}" placeholder="91"></div>
+        <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" value="${pot||''}" placeholder="95"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('${playerId}')">✅ Ajouter à la base</button>
+    </div>`;
+  } catch(e) {
+    // Fallback to manual form
+    res.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:8px">
+      <p style="font-size:12px;color:var(--yellow);margin-bottom:10px">⚠️ Impossible de récupérer automatiquement (ID: ${playerId}). Remplis manuellement :</p>
+      <div class="form-row">
+        <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" placeholder="K. Mbappé"></div>
+        <div><label class="form-label">Poste</label>
+          <select id="sf-poste" class="search-input">
+            ${['G','DD','DC','DG','MDC','MC','MG','MD','MOC','AG','AD','BU'].map(p=>`<option>${p}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" placeholder="AG, AD"></div>
+        <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" placeholder="25"></div>
+      </div>
+      <div class="form-row">
+        <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" placeholder="91"></div>
+        <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" placeholder="95"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('${playerId}')">✅ Ajouter à la base</button>
+    </div>`;
+  }
 }
 
 function confirmerAddSofifaPlayer(playerId) {
