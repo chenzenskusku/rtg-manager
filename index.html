@@ -947,7 +947,13 @@ let creerJoueurType = null;
 // ═══════════════ UTILS ═══════════════
 function fmtVal(v) {
   if (!v || v === 0) return '—';
-  if (v >= 1e6) return (v/1e6).toFixed(1).replace('.0','') + 'M€';
+  if (v >= 1e6) {
+    const m = v/1e6;
+    // Show quarters: .0, .25, .5, .75
+    const rounded = Math.round(m*4)/4;
+    const str = rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2).replace('.00','').replace(/0$/, '');
+    return str + 'M€';
+  }
   if (v >= 1e3) return Math.round(v/1e3) + 'K€';
   return v + '€';
 }
@@ -988,6 +994,7 @@ function playerPhoto(nom, size=28, poste='') {
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${c.bg};border:2px solid ${c.border};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:${fs}px;color:#fff;letter-spacing:0px;box-shadow:0 0 6px ${c.border}44">${initials}</div>`;
 }
 function roundTo05(v) { return Math.round(v/500000)*500000; }
+function roundTo025(v) { return Math.round(v/250000)*250000; }
 function genId() { return Date.now().toString(36)+Math.random().toString(36).slice(2); }
 function getGroqKey() { return localStorage.getItem('rtg_groq_key') || ''; }
 
@@ -2050,7 +2057,7 @@ async function confirmerTransfert() {
   if (!dest) { alert('Sélectionne un club.'); return; }
   const [destType, destName] = dest.split(':');
   const p = {...CLUBS_J[clubName].effectif[idx]};
-  const montant = Math.round(montantM * 1e6);
+  const montant = roundTo025(montantM * 1e6);
 
   // Remove from source
   CLUBS_J[clubName].effectif.splice(idx, 1);
@@ -2228,6 +2235,7 @@ Réponds en JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","mon
         messages:[{role:'system',content:'Réponds uniquement en JSON valide, sans markdown.'},{role:'user',content:prompt}]})});
     const d = await r.json();
     const parsed = JSON.parse(d.choices?.[0]?.message?.content?.replace(/```json|```/g,'').trim()||'{}');
+    if (parsed.montant) parsed.montant = roundTo025(parsed.montant);
 
     if (parsed.decision==='PAS_INTERESSE') {
       venteState.logEtapes.push({type:'rupture', label:'Refus', texte:parsed.message, montant:null});
@@ -2253,8 +2261,8 @@ Réponds en JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","mon
     }
 
     // OFFRE
-    const offreMontant = parsed.montant || Math.round(prixDemande * 0.75);
-    if (isReneg && offreMontant < venteState.offreIA) parsed.montant = Math.round(venteState.offreIA * 1.03);
+    const offreMontant = parsed.montant ? roundTo025(parsed.montant) : roundTo025(prixDemande * 0.75);
+    if (isReneg && offreMontant < venteState.offreIA) parsed.montant = roundTo025(venteState.offreIA * 1.03);
     else parsed.montant = offreMontant;
     venteState.offreIA = parsed.montant;
     venteState.round++;
@@ -2296,7 +2304,7 @@ function refuserVente() {
 async function submitVenteReneg() {
   const montantM = parseFloat(document.getElementById('vente-reneg-montant').value);
   if (isNaN(montantM)) return;
-  const montant = Math.round(montantM * 1e6);
+  const montant = roundTo025(montantM * 1e6);
   if (montant <= venteState.offreIA) { alert(`Doit être > ${fmtVal(venteState.offreIA)}`); return; }
   const plafond = venteState.derniereContre > 0 ? venteState.derniereContre : venteState.prixBase;
   if (montant >= plafond) { alert(`Doit être < ${fmtVal(plafond)}`); return; }
@@ -2423,6 +2431,7 @@ Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","mont
         messages:[{role:'system',content:'JSON uniquement.'},{role:'user',content:prompt}]})});
     const d = await r.json();
     const parsed = JSON.parse(d.choices?.[0]?.message?.content?.replace(/```json|```/g,'').trim()||'{}');
+    if (parsed.montant) parsed.montant = roundTo025(parsed.montant);
 
     if (parsed.decision==='PAS_INTERESSE') {
       achatState.logEtapes.push({type:'rupture', label:'Refus vendeur', texte:parsed.message, montant:null});
@@ -2444,9 +2453,9 @@ Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","mont
       return;
     }
 
-    parsed.montant = parsed.montant || Math.round(calcValeur(player.ovr||player.overall, player.age, player.pot||player.potentiel) * 1.1);
-    if (round > 0 && parsed.montant > achatState.offreIA) parsed.montant = Math.round(achatState.offreIA * 0.97);
-    if (round > 0 && parsed.montant <= achatState.derniereContre) parsed.montant = Math.round(achatState.derniereContre * 1.03);
+    parsed.montant = parsed.montant ? roundTo025(parsed.montant) : roundTo025(calcValeur(player.ovr||player.overall, player.age, player.pot||player.potentiel) * 1.1);
+    if (round > 0 && parsed.montant > achatState.offreIA) parsed.montant = roundTo025(achatState.offreIA * 0.97);
+    if (round > 0 && parsed.montant <= achatState.derniereContre) parsed.montant = roundTo025(achatState.derniereContre * 1.03);
     achatState.offreIA = parsed.montant;
     achatState.round++;
     achatState.logEtapes.push({type:'club', label:`Demande R${round}`, texte:parsed.message, montant:parsed.montant});
@@ -2491,7 +2500,7 @@ function achatRefuser() {
 async function submitAchatReneg() {
   const montantM = parseFloat(document.getElementById('achat-reneg-montant').value);
   if (isNaN(montantM)) return;
-  const montant = Math.round(montantM * 1e6);
+  const montant = roundTo025(montantM * 1e6);
   if (montant >= achatState.offreIA) { alert(`Doit être < ${fmtVal(achatState.offreIA)}`); return; }
   if (achatState.derniereContre > 0 && montant <= achatState.derniereContre) { alert(`Doit être > ${fmtVal(achatState.derniereContre)}`); return; }
 
