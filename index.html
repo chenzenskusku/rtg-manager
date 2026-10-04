@@ -1281,6 +1281,7 @@ async function validerOffre(id) {
   const offre = SHARED.offres_attente.find(o => o.id === id);
   if (!offre) return;
   offre.statut = 'validee';
+  _isSaving = true; // Block realtime during transfer
 
   if (offre.type === 'vente') {
     // Remove from club joueur, add budget
@@ -1288,38 +1289,61 @@ async function validerOffre(id) {
     if (eff) {
       const idx = eff.findIndex(p => p.nom === offre.joueur && !p._pretFrom);
       if (idx !== -1) eff.splice(idx, 1);
+      else { console.warn('Joueur non trouvé dans effectif:', offre.joueur); }
     }
-    const budget = parseInt(String(CLUBS_J[offre.clubDepart]?.budget||0).replace(/[\s]/g,''))||0;
+    const budget = parseInt(String(CLUBS_J[offre.clubDepart]?.budget||0).replace(/\s/g,''))||0;
     if (CLUBS_J[offre.clubDepart]) CLUBS_J[offre.clubDepart].budget = String(budget + offre.montant);
     SHARED.mercato.ventes.push({date:new Date().toISOString(), joueur:offre.joueur, ovr:offre.ovr, clubDepart:offre.clubDepart, montant:offre.montant});
     SHARED.historique.push({date:new Date().toISOString(), joueur:offre.joueur, ovr:offre.ovr, clubDepart:offre.clubDepart, clubArrivee:'Club IA', montant:offre.montant});
     await saveOneClub(offre.clubDepart, 'joueur');
     await saveState(['mercato','historique','offres_attente']);
   } else {
-    // Achat: remove from IA club, add to joueur club
-    const p = offre.joueurData;
-    if (p._clubIA && CLUBS_IA[p._clubIA]) {
-      CLUBS_IA[p._clubIA].effectif = CLUBS_IA[p._clubIA].effectif.filter(j => j.nom !== offre.joueur);
-      const srcB = parseInt(String(CLUBS_IA[p._clubIA].budget||0).replace(/[\s]/g,''))||0;
-      CLUBS_IA[p._clubIA].budget = String(srcB + offre.montant);
-      await saveOneClub(p._clubIA, 'ia');
+    // Achat: find player by name only - use DB or source club as reference
+    const joueurNom = offre.joueur;
+    const clubSrc = offre.clubDepart;
+    const clubDst = offre.clubArrivee;
+
+    // Find player data from source club IA or DB
+    let playerData = null;
+    if (clubSrc !== 'Libre' && CLUBS_IA[clubSrc]) {
+      playerData = CLUBS_IA[clubSrc].effectif.find(j => j.nom === joueurNom);
+      if (playerData) {
+        // Remove from source IA club
+        CLUBS_IA[clubSrc].effectif = CLUBS_IA[clubSrc].effectif.filter(j => j.nom !== joueurNom);
+        const srcB = parseInt(String(CLUBS_IA[clubSrc].budget||0).replace(/\s/g,''))||0;
+        CLUBS_IA[clubSrc].budget = String(srcB + offre.montant);
+        await saveOneClub(clubSrc, 'ia');
+      }
     }
-    if (CLUBS_J[offre.clubArrivee]) {
-      CLUBS_J[offre.clubArrivee].effectif.push({
-        nom:p.nom, poste:p.poste, pos2:p.pos2||'',
-        age:p.age, overall:p.ovr||p.overall, potentiel:p.pot||p.potentiel,
-        valeur:calcValeur(p.ovr||p.overall, p.age, p.pot||p.potentiel),
-        contrat:1, pret:null, _pretFrom:null, _custom:false
-      });
-      const dB = parseInt(String(CLUBS_J[offre.clubArrivee].budget||0).replace(/[\s]/g,''))||0;
-      CLUBS_J[offre.clubArrivee].budget = String(Math.max(0, dB - offre.montant));
-      await saveOneClub(offre.clubArrivee, 'joueur');
+    // Fallback to DB if not found in IA club
+    if (!playerData) {
+      const dbP = DB.find(p => p.nom === joueurNom);
+      if (dbP) playerData = {nom:dbP.nom, poste:dbP.poste, pos2:dbP.pos2||'', age:dbP.age, overall:dbP.ovr, potentiel:dbP.pot, valeur:calcValeur(dbP.ovr, dbP.age, dbP.pot)};
     }
-    SHARED.mercato.achats.push({date:new Date().toISOString(), joueur:offre.joueur, ovr:offre.ovr, clubDepart:offre.clubDepart, clubArrivee:offre.clubArrivee, montant:offre.montant});
-    SHARED.historique.push({date:new Date().toISOString(), joueur:offre.joueur, ovr:offre.ovr, clubDepart:offre.clubDepart, clubArrivee:offre.clubArrivee, montant:offre.montant});
+
+    if (playerData && CLUBS_J[clubDst]) {
+      // Make sure player is not already in dest club
+      const alreadyThere = CLUBS_J[clubDst].effectif.find(p => p.nom === joueurNom);
+      if (!alreadyThere) {
+        CLUBS_J[clubDst].effectif.push({
+          nom: playerData.nom, poste: playerData.poste, pos2: playerData.pos2||'',
+          age: playerData.age, overall: playerData.overall||playerData.ovr,
+          potentiel: playerData.potentiel||playerData.pot,
+          valeur: playerData.valeur || calcValeur(playerData.overall||playerData.ovr, playerData.age, playerData.potentiel||playerData.pot),
+          contrat:1, pret:null, _pretFrom:null, _custom:false
+        });
+      }
+      const dB = parseInt(String(CLUBS_J[clubDst].budget||0).replace(/\s/g,''))||0;
+      CLUBS_J[clubDst].budget = String(Math.max(0, dB - offre.montant));
+      await saveOneClub(clubDst, 'joueur');
+    }
+    SHARED.mercato.achats.push({date:new Date().toISOString(), joueur:joueurNom, ovr:offre.ovr, clubDepart:clubSrc, clubArrivee:clubDst, montant:offre.montant});
+    SHARED.historique.push({date:new Date().toISOString(), joueur:joueurNom, ovr:offre.ovr, clubDepart:clubSrc, clubArrivee:clubDst, montant:offre.montant});
     await saveState(['mercato','historique','offres_attente']);
   }
 
+  _lastSaveAt = new Date().toISOString(); // Ignore realtime echo for 5s
+  setTimeout(() => { _isSaving = false; }, 5000);
   renderSidebars();
   if (selectedClub) renderClubContent();
   renderOffres();
