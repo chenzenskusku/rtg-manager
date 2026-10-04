@@ -892,13 +892,15 @@ select.search-input{cursor:pointer}
       <button class="modal-close" onclick="closeModal('modal-add-sofifa')">✕</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:4px">Colle le lien SoFIFA du joueur :</p>
-      <input type="text" id="sofifa-url" class="search-input" placeholder="https://sofifa.com/player/158023/kylian-mbappe/">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:4px">
+        Sur SoFIFA, ouvre la page du joueur, fais <strong>Ctrl+A</strong> puis <strong>Ctrl+C</strong> et colle ici :
+      </p>
+      <textarea id="sofifa-paste" class="search-input" rows="6" style="resize:vertical;font-size:12px" placeholder="Colle le contenu de la page SoFIFA ici..."></textarea>
       <div id="sofifa-result" style="margin-top:8px"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-add-sofifa')">Annuler</button>
-      <button class="btn btn-primary btn-sm" onclick="fetchSofifaPlayer()">🔍 Récupérer</button>
+      <button class="btn btn-primary btn-sm" onclick="parseSofifaPaste()">🔍 Analyser</button>
     </div>
   </div>
 </div>
@@ -1161,6 +1163,16 @@ async function loadAllData() {
         case 'classement': SHARED.classement = row.value||[]; break;
         case 'wheel_segments': SHARED.wheel_segments = row.value||[]; break;
         case 'offres_attente': SHARED.offres_attente = row.value||[]; break;
+        case 'custom_players':
+          if (Array.isArray(row.value)) {
+            row.value.forEach(p => {
+              if (!DB.find(x => x.nom === p.nom)) {
+                DB.push(p);
+                if (p.id) DB_ID_MAP[p.nom] = p.id;
+              }
+            });
+          }
+          break;
         case 'stats': if (row.value) SHARED.stats = row.value; break;
         case 'current_saison': if (row.value) SHARED.currentSaison = row.value; break;
         case 'groq_key': if (row.value) localStorage.setItem('rtg_groq_key', typeof row.value==='string'?row.value:row.value+''); break;
@@ -1339,119 +1351,67 @@ function openHistoClub(clubName) {
   openModal('modal-histo-club');
 }
 
-async function fetchSofifaPlayer() {
-  const url = document.getElementById('sofifa-url').value.trim();
+async function parseSofifaPaste() {
+  const text = document.getElementById('sofifa-paste').value.trim();
   const res = document.getElementById('sofifa-result');
-  if (!url.includes('sofifa.com/player/')) {
-    res.innerHTML = '<p style="color:var(--red);font-size:13px">❌ Lien invalide. Ex: https://sofifa.com/player/158023/kylian-mbappe/</p>';
-    return;
-  }
+  if (text.length < 50) { res.innerHTML = '<p style="color:var(--red);font-size:13px">❌ Colle le contenu de la page SoFIFA.</p>'; return; }
 
-  const parts = url.replace('https://sofifa.com/player/','').replace('http://sofifa.com/player/','').split('/');
-  const playerId = parts[0];
-  if (!playerId) { res.innerHTML = '<p style="color:var(--red);font-size:13px">❌ ID introuvable dans le lien.</p>'; return; }
+  res.innerHTML = '<div class="loading"><div class="spinner"></div> Analyse avec IA...</div>';
 
-  res.innerHTML = '<div class="loading"><div class="spinner"></div> Récupération de la page SoFIFA...</div>';
+  const groqKey = getGroqKey();
+  if (!groqKey) { res.innerHTML = '<p style="color:var(--red);font-size:13px">❌ Clé Groq manquante.</p>'; return; }
 
   try {
-    // Use allorigins proxy to bypass CORS
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const r = await fetch(proxyUrl, {timeout: 15000});
-    const data = await r.json();
-    const pageHtml = data.contents;
+    const prompt = `Extrait les informations de ce joueur FC27 depuis ce texte SoFIFA.
+Réponds UNIQUEMENT en JSON : {"nom":"...","poste":"...","pos2":"...","age":0,"ovr":0,"pot":0}
+- poste : utilise G, DD, DC, DG, MDC, MC, MG, MD, MOC, AG, AD, BU
+- pos2 : postes secondaires séparés par des virgules (peut être vide "")
+- ovr : note générale (Overall)
+- pot : potentiel (Potential)
 
-    if (!pageHtml || pageHtml.length < 100) throw new Error('Page vide');
+Texte SoFIFA :
+${text.slice(0, 3000)}`;
 
-    // Parse player data from HTML
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(pageHtml, 'text/html');
-
-    // Extract name
-    let nom = doc.querySelector('h1')?.textContent?.trim() || '';
-    nom = nom.replace(/^\d+\s+/, '').trim();
-
-    // Extract positions
-    const posSpans = [...doc.querySelectorAll('span.pos')].map(s => s.textContent.trim());
-
-    // Map sofifa positions to our format
-    const posMap = {'GK':'G','CB':'DC','LB':'DG','RB':'DD','LWB':'DG','RWB':'DD','CDM':'MDC','CM':'MC','CAM':'MOC','LM':'MG','RM':'MD','LW':'AG','RW':'AD','ST':'BU','CF':'BU','RF':'AD','LF':'AG'};
-    const poste = posMap[posSpans[0]] || posSpans[0] || 'BU';
-    const pos2 = posSpans.slice(1).map(p => posMap[p]||p).filter(Boolean).join(', ');
-
-    // Extract OVR, POT, age from meta or spans
-    const allText = doc.body?.textContent || '';
-
-    // OVR/POT usually in specific spans
-    let ovr = 0, pot = 0, age = 0;
-    doc.querySelectorAll('span.bp3-tag').forEach(el => {
-      const v = parseInt(el.textContent.trim());
-      if (!isNaN(v) && v >= 50 && v <= 99) {
-        if (!ovr) ovr = v;
-        else if (!pot) pot = v;
-      }
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile', max_tokens: 200,
+        messages: [{role:'system',content:'Réponds uniquement en JSON valide, sans markdown.'},{role:'user',content:prompt}]
+      })
     });
+    const d = await r.json();
+    const parsed = JSON.parse(d.choices?.[0]?.message?.content?.replace(/```json|```/g,'').trim()||'{}');
 
-    // Fallback: look for number patterns in specific areas
-    if (!ovr) {
-      const ovrMatch = allText.match(/Overall\D{0,10}(\d{2})/);
-      if (ovrMatch) ovr = parseInt(ovrMatch[1]);
-    }
-    if (!pot) {
-      const potMatch = allText.match(/Potential\D{0,10}(\d{2})/);
-      if (potMatch) pot = parseInt(potMatch[1]);
-    }
+    if (!parsed.nom || !parsed.ovr) throw new Error('Données incomplètes');
 
-    // Age
-    const ageMatch = allText.match(/(\d{2})\s*years?\s*old|Age\D{0,5}(\d{2})/i);
-    if (ageMatch) age = parseInt(ageMatch[1] || ageMatch[2]);
-
-    // Show prefilled form for validation
     res.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:8px">
-      <p style="font-size:12px;color:var(--green);margin-bottom:10px">✅ Données récupérées — vérifie et corrige si besoin :</p>
+      <p style="font-size:12px;color:var(--green);margin-bottom:10px">✅ Données extraites — vérifie et valide :</p>
       <div class="form-row">
-        <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" value="${nom}" placeholder="K. Mbappé"></div>
+        <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" value="${parsed.nom}"></div>
         <div><label class="form-label">Poste</label>
           <select id="sf-poste" class="search-input">
-            ${['G','DD','DC','DG','MDC','MC','MG','MD','MOC','AG','AD','BU'].map(p=>`<option${p===poste?' selected':''}>${p}</option>`).join('')}
+            ${['G','DD','DC','DG','MDC','MC','MG','MD','MOC','AG','AD','BU'].map(p=>`<option${p===parsed.poste?' selected':''}>${p}</option>`).join('')}
           </select>
         </div>
       </div>
       <div class="form-row">
-        <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" value="${pos2}" placeholder="AG, AD"></div>
-        <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" value="${age||''}" placeholder="25"></div>
+        <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" value="${parsed.pos2||''}"></div>
+        <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" value="${parsed.age||''}"></div>
       </div>
       <div class="form-row">
-        <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" value="${ovr||''}" placeholder="91"></div>
-        <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" value="${pot||''}" placeholder="95"></div>
+        <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" value="${parsed.ovr||''}"></div>
+        <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" value="${parsed.pot||''}"></div>
       </div>
-      <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('${playerId}')">✅ Ajouter à la base</button>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('')">✅ Ajouter à la base</button>
     </div>`;
   } catch(e) {
-    // Fallback to manual form
-    res.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:12px;margin-top:8px">
-      <p style="font-size:12px;color:var(--yellow);margin-bottom:10px">⚠️ Impossible de récupérer automatiquement (ID: ${playerId}). Remplis manuellement :</p>
-      <div class="form-row">
-        <div><label class="form-label">Nom</label><input type="text" id="sf-nom" class="search-input" placeholder="K. Mbappé"></div>
-        <div><label class="form-label">Poste</label>
-          <select id="sf-poste" class="search-input">
-            ${['G','DD','DC','DG','MDC','MC','MG','MD','MOC','AG','AD','BU'].map(p=>`<option>${p}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div><label class="form-label">Postes sec.</label><input type="text" id="sf-pos2" class="search-input" placeholder="AG, AD"></div>
-        <div><label class="form-label">Âge</label><input type="number" id="sf-age" class="search-input" placeholder="25"></div>
-      </div>
-      <div class="form-row">
-        <div><label class="form-label">OVR</label><input type="number" id="sf-ovr" class="search-input" placeholder="91"></div>
-        <div><label class="form-label">POT</label><input type="number" id="sf-pot" class="search-input" placeholder="95"></div>
-      </div>
-      <button class="btn btn-primary btn-sm" style="margin-top:8px;width:100%" onclick="confirmerAddSofifaPlayer('${playerId}')">✅ Ajouter à la base</button>
-    </div>`;
+    res.innerHTML = `<p style="color:var(--red);font-size:13px">❌ Erreur : ${e.message}</p>`;
   }
 }
 
-function confirmerAddSofifaPlayer(playerId) {
+
+async function confirmerAddSofifaPlayer(playerId) {
   const nom = document.getElementById('sf-nom').value.trim();
   const poste = document.getElementById('sf-poste').value;
   const pos2 = document.getElementById('sf-pos2').value.trim();
@@ -1465,27 +1425,31 @@ function confirmerAddSofifaPlayer(playerId) {
   if (ovr < 60 || ovr > 99) { alert('OVR doit être entre 60 et 99.'); return; }
   if (pot < ovr || pot > 99) { alert('POT doit être >= OVR.'); return; }
 
-  // Check if already in DB
   if (DB.find(p => p.nom === nom)) {
     alert(`${nom} est déjà dans la base !`); return;
   }
 
-  // Add to DB
-  DB.push({
-    id: playerId,
-    nom, poste, pos2, age, ovr, pot,
-    val: calcValeur(ovr, age, pot)
-  });
+  const newPlayer = { id: playerId||'', nom, poste, pos2, age, ovr, pot, val: calcValeur(ovr, age, pot) };
 
-  // Update DB_ID_MAP
-  DB_ID_MAP[nom] = playerId;
+  // Add to local DB
+  DB.push(newPlayer);
+  if (playerId) DB_ID_MAP[nom] = playerId;
+
+  // Save to Supabase shared_data key 'custom_players'
+  try {
+    const existing = await fetch(`${SUPABASE_URL}/rest/v1/shared_data?key=eq.custom_players&select=value`,
+      {headers:{apikey:SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}}).then(r=>r.json());
+    const list = (existing[0]?.value) || [];
+    list.push(newPlayer);
+    await upsertShared('custom_players', list);
+  } catch(e) { console.error('Save custom player error:', e); }
 
   document.getElementById('sofifa-result').innerHTML = `<div style="background:#0d1f0d;border:1px solid var(--green);border-radius:var(--radius);padding:12px;margin-top:8px">
     <p style="color:var(--green);font-family:var(--font-display);font-weight:700">✅ ${nom} ajouté à la base !</p>
     <p style="font-size:12px;color:var(--muted);margin-top:4px">${poste} · ${age} ans · OVR ${ovr} · POT ${pot}</p>
-    <p style="font-size:12px;color:var(--muted)">Disponible immédiatement dans les recherches.</p>
+    <p style="font-size:12px;color:var(--muted)">Disponible immédiatement dans les recherches pour tout le monde.</p>
   </div>`;
-  document.getElementById('sofifa-url').value = '';
+  document.getElementById('sofifa-paste').value = '';
 }
 
 function checkDoublons() {
