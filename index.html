@@ -2733,7 +2733,7 @@ async function genererOffreAchat() {
     + "Joue ton rôle de manière réaliste et imprévisible. Adapte ta flexibilité au profil du joueur.\n"
     + "Si renégociation : ne reste jamais au même prix qu'avant.\n"
     + 'IMPORTANT : "message" = phrase courte (max 20 mots) en français.\n'
-    + 'Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"..."}';nt":0,"message":"..."}`;
+    + 'Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"..."}';
 
   try {
     const r = await fetch(GROQ_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
@@ -2940,7 +2940,7 @@ function renderHistoTab(tab) {
         steps += '<div class="nego-step"><span class="nego-icon">'+ic+'</span><span class="nego-label" style="color:var(--muted)">'+e.label+'</span><span class="nego-text">'+(e.texte||'')+'</span>'+(e.montant?'<span class="nego-montant" style="color:'+co+'">'+fmtVal(e.montant)+'</span>':'')+'</div>';
       });
       return '<div class="histo-nego-item">' +
-        '<div class="histo-nego-header" onclick="toggleNego('nego-'+tab+'-'+i+'')">' +
+        '<div class="histo-nego-header" onclick="toggleNego(&quot;nego-'+tab+'-'+i+'&quot;)">' +
           '<div><span style="font-family:var(--font-display);font-weight:700;font-size:15px">'+(n.joueur||'')+'</span><span style="font-size:11px;color:var(--muted);margin-left:8px">'+new Date(n.date).toLocaleDateString('fr-FR')+' · '+(n.clubSource||'')+'</span></div>' +
           '<div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--font-display);font-weight:700;font-size:12px;color:'+sc+'">'+sl+'</span>'+(n.montantFinal?'<span style="font-family:var(--font-display);font-weight:700;color:var(--green)">'+fmtVal(n.montantFinal)+'</span>':'')+'<span style="color:var(--muted);font-size:12px">▼</span></div>' +
         '</div>' +
@@ -3068,29 +3068,30 @@ function renderTOTW() {
   if (!data.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Aucune TOTW créée</div></div>'; return; }
   const bySaison = {};
   data.forEach(t => { if (!bySaison[t.saison]) bySaison[t.saison]=[]; bySaison[t.saison].push(t); });
-  let html = '';
+  let out = '';
   Object.keys(bySaison).sort((a,b)=>b-a).forEach(s => {
     const totws = bySaison[s].sort((a,b)=>a.journee-b.journee);
-    html += '<div style="margin-bottom:24px">';
-    html += '<h3 style="font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px">Saison '+s+' <span style="font-size:13px;color:var(--muted);font-weight:400">'+totws.length+'/17</span></h3>';
-    html += '<div class="totw-grid">';
+    out += "<div style='margin-bottom:24px'>";
+    out += "<h3 style='font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px'>Saison " + s + " <span style='font-size:13px;color:var(--muted);font-weight:400'>"+totws.length+"/17</span></h3>";
+    out += "<div class='totw-grid'>";
     totws.forEach(t => {
-      html += '<div class="totw-card" onclick="toggleTOTWCard('totw-'+t.saison+'-'+t.journee+'')">';
-      html += '<div class="totw-card-header"><div class="totw-card-label">TOTW</div><div class="totw-card-j">J'+t.journee+'</div><div class="totw-card-date">'+new Date(t.date).toLocaleDateString('fr-FR')+'</div></div>';
-      html += '<div id="totw-'+t.saison+'-'+t.journee+'" class="totw-card-body">';
+      const cardId = "totw-"+t.saison+"-"+t.journee;
+      out += "<div class='totw-card' data-totw-id='"+cardId+"' onclick='toggleTOTWCard(this.dataset.totwId)'>";
+      out += "<div class='totw-card-header'><div class='totw-card-label'>TOTW</div><div class='totw-card-j'>J"+t.journee+"</div><div class='totw-card-date'>"+new Date(t.date).toLocaleDateString("fr-FR")+"</div></div>";
+      out += "<div id='" + cardId + "' class='totw-card-body'>";
       t.joueurs.forEach(j => {
-        html += '<div class="totw-player-row">';
-        html += '<span class="ovr-badge '+ovrCls(j.overall)+'" style="width:24px;height:24px;font-size:11px;flex-shrink:0">'+j.overall+'</span>';
-        html += '<span style="font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:'+(j._custom?'var(--yellow)':'var(--text)')+'">'+j.nom+(j._custom?' ⭐':'')+'</span>';
-        html += '<span style="font-size:11px;color:var(--muted)">'+j.poste+'</span>';
-        html += '</div>';
+        out += "<div class='totw-player-row'>";
+        out += "<span class='ovr-badge "+ovrCls(j.overall)+"' style='width:24px;height:24px;font-size:11px;flex-shrink:0'>"+j.overall+"</span>";
+        out += "<span style='font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:"+(j._custom?"var(--yellow)":"var(--text)")+"'>"+(j.nom||""+(j._custom?" ⭐":"")+"</span>");
+        out += "<span style='font-size:11px;color:var(--muted)'>"+j.poste+"</span>";
+        out += "</div>";
       });
-      html += '<button class="trash-btn" style="margin-top:8px" onclick="event.stopPropagation();deleteTOTW('+t.saison+','+t.journee+')">🗑️ Supprimer</button>';
-      html += '</div></div>';
+      out += "<button class='trash-btn' style='margin-top:8px' data-s='" + t.saison + "' data-j='" + t.journee + "' onclick='event.stopPropagation();deleteTOTW(+this.dataset.s,+this.dataset.j)'>🗑️ Supprimer</button>";
+      out += "</div></div>";
     });
-    html += '</div></div>';
+    out += "</div></div>";
   });
-  div.innerHTML = html;
+  div.innerHTML = out;
 }
 
 function toggleTOTWCard(id) { const el=document.getElementById(id); if(el) el.style.display=el.style.display==='block'?'none':'block'; }
