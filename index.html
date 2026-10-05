@@ -2520,14 +2520,22 @@ async function genererOffreVente(valRef, prixDemande, isReneg) {
   if (!groqKey) { zone.innerHTML = '<div class="result-box"><div class="result-box-body"><p class="result-message" style="color:var(--red)">Clé Groq manquante. Configurez-la dans Supabase.</p></div></div>'; return; }
 
   const forcerRefus = ratio > 1.8 + (isReneg ? 0.1 : 0); // Used only as hint to Groq
-  const prompt = `Tu es un directeur sportif anonyme qui négocie DUREMENT l'achat d'un joueur.
-Joueur : ${joueur.nom}, ${joueur.poste}, ${joueur.age} ans, OVR ${joueur.overall}, POT ${joueur.potentiel}.
-Valeur marché : ${fmtVal(valRef)}. Prix demandé : ${fmtVal(prixDemande)}.
-${isReneg ? `Renégociation round ${venteState.round}/3. Dernière offre : ${fmtVal(venteState.offreIA)}. Contre-offre vendeur : ${fmtVal(prixDemande)}.` : ''}
-${forcerRefus ? 'INSTRUCTION : prix totalement irréaliste → réponds PAS_INTERESSE obligatoirement.' : ''}
-Règles : ${ratio>1.2 ? 'prix surévalué →' : ''} ~35% de refus même à prix raisonnable. Si tu fais une offre : entre 60-92% du prix demandé.${isReneg ? ` Offre STRICTEMENT > ${fmtVal(venteState.offreIA)} et < ${fmtVal(prixDemande)}.` : ''}
-IMPORTANT : le champ "message" doit TOUJOURS contenir une phrase courte et réaliste en français expliquant ta décision (ex: "Le prix est trop élevé par rapport au marché actuel", "Nous sommes intéressés mais notre budget est limité", etc.)
-Réponds en JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","montant":0,"message":"ta phrase ici"}`;
+  const ageFacteurV = joueur.age <= 23 ? 'jeune talent très convoité' : joueur.age >= 31 ? 'joueur expérimenté en fin de carrière' : 'joueur confirmé en pleine maturité';
+  const gapFactorV = (joueur.potentiel - joueur.overall) >= 8 ? 'fort potentiel restant' : 'peu de progression attendue';
+  const prompt = `Tu es un directeur sportif ACHETEUR qui veut recruter ${joueur.nom}.
+Contexte joueur : ${joueur.poste}, ${joueur.age} ans (${ageFacteurV}), OVR ${joueur.overall}, POT ${joueur.potentiel} (${gapFactorV}).
+Valeur marché estimée : ${fmtVal(valRef)}. Prix demandé par le vendeur : ${fmtVal(prixDemande)}.
+${isReneg ? `Historique : tu avais proposé ${fmtVal(venteState.offreIA)}, le vendeur contre à ${fmtVal(prixDemande)} (round ${venteState.round}/3).` : 'Première offre — évalue si le prix est correct et propose en conséquence.'}
+${forcerRefus ? 'Le prix est vraiment beaucoup trop élevé par rapport au marché → réponds PAS_INTERESSE.' : ''}
+
+Tu dois jouer le rôle de manière réaliste :
+- Adapte ton intérêt au profil : un grand talent se paie plus cher, un joueur déclinant mérite une offre basse
+- Si renégociation : ton offre doit être supérieure à ta précédente (${fmtVal(venteState.offreIA||0)}) et inférieure au prix demandé (${fmtVal(prixDemande)})
+- Sois imprévisible : parfois tu acceptes rapidement, parfois tu tiens bon
+- Peux accepter directement si le prix te semble juste
+
+IMPORTANT : "message" = phrase courte (max 20 mots) en français justifiant ta position.
+Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","montant":0,"message":"..."}`;
 
   try {
     const r = await fetch(GROQ_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
@@ -2716,14 +2724,21 @@ async function genererOffreAchat() {
   const groqKey = getGroqKey();
   if (!groqKey) { zone.innerHTML = '<div class="result-box"><div class="result-box-body"><p style="color:var(--red)">Clé Groq manquante.</p></div></div>'; return; }
 
-  const prompt = `Tu es le directeur sportif VENDEUR de ${player.nom}. Tu veux vendre AU MEILLEUR PRIX.
-Joueur : ${player.nom}, ${player.poste}, ${player.age} ans, OVR ${player.ovr||player.overall}, POT ${player.pot||player.potentiel}.
-Valeur référence : ${fmtVal(valRef)}.
-${achatState.round > 0 ? `Renégociation R${achatState.round}/3. Dernière demande : ${fmtVal(achatState.offreIA)}. Offre acheteur : ${fmtVal(achatState.derniereContre)}.` : 'Première proposition.'}
-Règles vendeur : propose entre 100-140% de la valeur. ~30% de refus même à bon prix.
-${achatState.round > 0 ? `Tu peux accepter l'offre (${fmtVal(achatState.derniereContre)}) si raisonnable, sinon descends légèrement mais reste > ${fmtVal(achatState.derniereContre)}.` : ''}
-IMPORTANT : le champ "message" doit TOUJOURS contenir une phrase courte et réaliste en français expliquant ta décision (ex: "Ce joueur vaut bien plus que votre offre", "Nous acceptons compte tenu de l'urgence de la situation", etc.)
-Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"ta phrase ici"}`;
+  const ageFacteur = player.age <= 23 ? 'jeune talent avec forte valeur future' : player.age >= 31 ? 'joueur en fin de carrière, moins de pression pour vendre' : 'joueur en pleine maturité';
+  const gapFactor = player.pot - (player.ovr||player.overall) >= 8 ? 'fort potentiel, le club vendeur peut se montrer exigeant' : 'potentiel limité, le vendeur peut être plus flexible';
+  const prompt = `Tu es le directeur sportif VENDEUR qui négocie la vente de ${player.nom}.
+Contexte joueur : ${player.poste}, ${player.age} ans (${ageFacteur}), OVR ${player.ovr||player.overall}, POT ${player.pot||player.potentiel} (${gapFactor}).
+Valeur marché estimée : ${fmtVal(valRef)}.
+${achatState.round > 0 ? `Historique : tu avais demandé ${fmtVal(achatState.offreIA)}, l'acheteur propose maintenant ${fmtVal(achatState.derniereContre)} (round ${achatState.round}/3).` : 'C'est la première proposition — fixe ton prix de départ en tenant compte du profil du joueur.'}
+
+Tu dois jouer le rôle de manière réaliste :
+- Adapte ta flexibilité au profil : un jeune talent se vend plus cher et avec moins de concessions, un joueur vieillissant ou avec peu de potentiel peut faire plus de concessions
+- Si renégociation : tu peux baisser ton prix, l'accepter, ou refuser selon ce qui est réaliste
+- Ne jamais rester exactement au même prix qu'avant si renégociation
+- Sois imprévisible : parfois dur, parfois accommodant selon le contexte
+
+IMPORTANT : "message" = phrase courte (max 20 mots) en français justifiant ta position.
+Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"..."}`;
 
   try {
     const r = await fetch(GROQ_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
