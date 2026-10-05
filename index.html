@@ -2522,20 +2522,19 @@ async function genererOffreVente(valRef, prixDemande, isReneg) {
   const forcerRefus = ratio > 1.8 + (isReneg ? 0.1 : 0); // Used only as hint to Groq
   const ageFacteurV = joueur.age <= 23 ? 'jeune talent très convoité' : joueur.age >= 31 ? 'joueur expérimenté en fin de carrière' : 'joueur confirmé en pleine maturité';
   const gapFactorV = (joueur.potentiel - joueur.overall) >= 8 ? 'fort potentiel restant' : 'peu de progression attendue';
-  const prompt = `Tu es un directeur sportif ACHETEUR qui veut recruter ${joueur.nom}.
-Contexte joueur : ${joueur.poste}, ${joueur.age} ans (${ageFacteurV}), OVR ${joueur.overall}, POT ${joueur.potentiel} (${gapFactorV}).
-Valeur marché estimée : ${fmtVal(valRef)}. Prix demandé par le vendeur : ${fmtVal(prixDemande)}.
-${isReneg ? `Historique : tu avais proposé ${fmtVal(venteState.offreIA)}, le vendeur contre à ${fmtVal(prixDemande)} (round ${venteState.round}/3).` : 'Première offre — évalue si le prix est correct et propose en conséquence.'}
-${forcerRefus ? 'Le prix est vraiment beaucoup trop élevé par rapport au marché → réponds PAS_INTERESSE.' : ''}
-
-Tu dois jouer le rôle de manière réaliste :
-- Adapte ton intérêt au profil : un grand talent se paie plus cher, un joueur déclinant mérite une offre basse
-- Si renégociation : ton offre doit être supérieure à ta précédente (${fmtVal(venteState.offreIA||0)}) et inférieure au prix demandé (${fmtVal(prixDemande)})
-- Sois imprévisible : parfois tu acceptes rapidement, parfois tu tiens bon
-- Peux accepter directement si le prix te semble juste
-
-IMPORTANT : "message" = phrase courte (max 20 mots) en français justifiant ta position.
-Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","montant":0,"message":"..."}`;
+  const histoV = isReneg ? 'Historique : tu avais proposé ' + fmtVal(venteState.offreIA) + ', le vendeur contre à ' + fmtVal(prixDemande) + ' (round ' + venteState.round + '/3).' : 'Première offre — évalue si le prix est correct et propose en conséquence.';
+  const refusV = forcerRefus ? 'Le prix est vraiment beaucoup trop élevé par rapport au marché → réponds PAS_INTERESSE.' : '';
+  const prompt = 'Tu es un directeur sportif ACHETEUR qui veut recruter ' + joueur.nom + '.\n'
+    + 'Contexte joueur : ' + joueur.poste + ', ' + joueur.age + ' ans (' + ageFacteurV + '), OVR ' + joueur.overall + ', POT ' + joueur.potentiel + ' (' + gapFactorV + ').\n'
+    + 'Valeur marché estimée : ' + fmtVal(valRef) + '. Prix demandé par le vendeur : ' + fmtVal(prixDemande) + '.\n'
+    + histoV + '\n'
+    + refusV + '\n'
+    + 'Tu dois jouer le rôle de manière réaliste :\n'
+    + '- Adapte ton intérêt au profil : un grand talent se paie plus cher, un joueur déclinant mérite une offre basse\n'
+    + '- Si renégociation : ton offre doit être supérieure à ta précédente (' + fmtVal(venteState.offreIA||0) + ') et inférieure au prix demandé (' + fmtVal(prixDemande) + ')\n'
+    + '- Sois imprévisible : parfois tu acceptes rapidement, parfois tu tiens bon\n'
+    + 'IMPORTANT : "message" = phrase courte (max 20 mots) en français justifiant ta position.\n'
+    + 'Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","montant":0,"message":"..."}';
 
   try {
     const r = await fetch(GROQ_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
@@ -2574,7 +2573,7 @@ Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"ACCEPTE"|"OFFRE","montan
     else parsed.montant = offreMontant;
     venteState.offreIA = parsed.montant;
     venteState.round++;
-    venteState.logEtapes.push({type:'club', label:`Offre R${venteState.round}`, texte:parsed.message||'Offre reçue', montant:parsed.montant});
+    venteState.logEtapes.push({type:'club', label:'Offre R'+venteState.round, texte:parsed.message||'Offre reçue', montant:parsed.montant});
 
     zone.innerHTML = `<div class="result-box fade-in">
       <div class="result-box-header">
@@ -2613,13 +2612,13 @@ async function submitVenteReneg() {
   const montantM = parseFloat(document.getElementById('vente-reneg-montant').value);
   if (isNaN(montantM)) return;
   const montant = roundTo025(montantM * 1e6);
-  if (montant <= venteState.offreIA) { alert(`Doit être > ${fmtVal(venteState.offreIA)}`); return; }
+  if (montant <= venteState.offreIA) { alert('Doit être > '+fmtVal(venteState.offreIA)); return; }
   const plafond = venteState.derniereContre > 0 ? venteState.derniereContre : venteState.prixBase;
-  if (montant >= plafond) { alert(`Doit être < ${fmtVal(plafond)}`); return; }
+  if (montant >= plafond) { alert('Doit être < '+fmtVal(plafond)); return; }
 
   venteState.derniereContre = montant;
   venteState.round++;
-  venteState.logEtapes.push({type:'vendeur', label:`Contre R${venteState.round}`, texte:'Le vendeur contre-propose', montant});
+  venteState.logEtapes.push({type:'vendeur', label:'Contre R'+venteState.round, texte:'Le vendeur contre-propose', montant});
 
   const zone = document.getElementById('vente-nego-zone');
   zone.innerHTML = '<div class="loading"><div class="spinner"></div> Le club réfléchit...</div>';
@@ -2645,7 +2644,7 @@ async function accepterVente(montant) {
   const btn = document.getElementById('btn-accept-vente');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ En attente...'; }
   const {joueur, clubNom} = venteState;
-  venteState.logEtapes.push({type:'accord', label:'Accord trouvé', texte:`Offre de ${fmtVal(montant)} acceptée, en attente de validation`, montant});
+  venteState.logEtapes.push({type:'accord', label:'Accord trouvé', texte:'Offre de '+fmtVal(montant)+' acceptée, en attente de validation', montant});
   saveNegoLog('ventes', venteState, 'en_attente', montant);
 
   // Add to offres_attente instead of directly transferring
@@ -2725,20 +2724,16 @@ async function genererOffreAchat() {
   if (!groqKey) { zone.innerHTML = '<div class="result-box"><div class="result-box-body"><p style="color:var(--red)">Clé Groq manquante.</p></div></div>'; return; }
 
   const ageFacteur = player.age <= 23 ? 'jeune talent avec forte valeur future' : player.age >= 31 ? 'joueur en fin de carrière, moins de pression pour vendre' : 'joueur en pleine maturité';
-  const gapFactor = player.pot - (player.ovr||player.overall) >= 8 ? 'fort potentiel, le club vendeur peut se montrer exigeant' : 'potentiel limité, le vendeur peut être plus flexible';
-  const prompt = `Tu es le directeur sportif VENDEUR qui négocie la vente de ${player.nom}.
-Contexte joueur : ${player.poste}, ${player.age} ans (${ageFacteur}), OVR ${player.ovr||player.overall}, POT ${player.pot||player.potentiel} (${gapFactor}).
-Valeur marché estimée : ${fmtVal(valRef)}.
-${achatState.round > 0 ? `Historique : tu avais demandé ${fmtVal(achatState.offreIA)}, l'acheteur propose maintenant ${fmtVal(achatState.derniereContre)} (round ${achatState.round}/3).` : 'C'est la première proposition — fixe ton prix de départ en tenant compte du profil du joueur.'}
-
-Tu dois jouer le rôle de manière réaliste :
-- Adapte ta flexibilité au profil : un jeune talent se vend plus cher et avec moins de concessions, un joueur vieillissant ou avec peu de potentiel peut faire plus de concessions
-- Si renégociation : tu peux baisser ton prix, l'accepter, ou refuser selon ce qui est réaliste
-- Ne jamais rester exactement au même prix qu'avant si renégociation
-- Sois imprévisible : parfois dur, parfois accommodant selon le contexte
-
-IMPORTANT : "message" = phrase courte (max 20 mots) en français justifiant ta position.
-Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"..."}`;
+  const gapFactor = (player.pot||player.potentiel||0) - (player.ovr||player.overall||0) >= 8 ? 'fort potentiel, le club vendeur peut se montrer exigeant' : 'potentiel limité, le vendeur peut être plus flexible';
+  const histoA = achatState.round > 0 ? "Historique : tu avais demandé " + fmtVal(achatState.offreIA) + ", l'acheteur propose maintenant " + fmtVal(achatState.derniereContre) + " (round " + achatState.round + "/3)." : "C'est la première proposition — fixe ton prix de départ en tenant compte du profil du joueur.";
+  const prompt = "Tu es le directeur sportif VENDEUR qui négocie la vente de " + (player.nom||'') + ".\n"
+    + "Contexte : " + (player.poste||'') + ", " + (player.age||0) + " ans (" + ageFacteur + "), OVR " + (player.ovr||player.overall||0) + ", POT " + (player.pot||player.potentiel||0) + " (" + gapFactor + ").\n"
+    + "Valeur marché estimée : " + fmtVal(valRef) + ".\n"
+    + histoA + "\n"
+    + "Joue ton rôle de manière réaliste et imprévisible. Adapte ta flexibilité au profil du joueur.\n"
+    + "Si renégociation : ne reste jamais au même prix qu'avant.\n"
+    + 'IMPORTANT : "message" = phrase courte (max 20 mots) en français.\n'
+    + 'Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","montant":0,"message":"..."}';nt":0,"message":"..."}`;
 
   try {
     const r = await fetch(GROQ_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+groqKey},
@@ -2773,7 +2768,7 @@ Réponds JSON uniquement : {"decision":"PAS_INTERESSE"|"DEMANDE"|"ACCEPTE","mont
     if (round > 0 && parsed.montant <= achatState.derniereContre) parsed.montant = roundTo025(achatState.derniereContre * 1.03);
     achatState.offreIA = parsed.montant;
     achatState.round++;
-    achatState.logEtapes.push({type:'club', label:`Demande R${round}`, texte:parsed.message, montant:parsed.montant});
+    achatState.logEtapes.push({type:'club', label:'Demande R'+round, texte:parsed.message, montant:parsed.montant});
 
     const ecart = (parsed.montant - (achatState.derniereContre||0)) / parsed.montant;
     const probAccept = Math.max(0, 1 - ecart * 8);
@@ -2816,24 +2811,21 @@ async function submitAchatReneg() {
   const montantM = parseFloat(document.getElementById('achat-reneg-montant').value);
   if (isNaN(montantM)) return;
   const montant = roundTo025(montantM * 1e6);
-  if (montant >= achatState.offreIA) { alert(`Doit être < ${fmtVal(achatState.offreIA)}`); return; }
-  if (achatState.derniereContre > 0 && montant <= achatState.derniereContre) { alert(`Doit être > ${fmtVal(achatState.derniereContre)}`); return; }
+  if (montant >= achatState.offreIA) { alert('Doit être < '+fmtVal(achatState.offreIA)); return; }
+  if (achatState.derniereContre > 0 && montant <= achatState.derniereContre) { alert('Doit être > '+fmtVal(achatState.derniereContre)); return; }
 
   // Check if vendor would auto-accept
   const ecart = (achatState.offreIA - montant) / achatState.offreIA;
   if (Math.random() < Math.max(0, 1 - ecart * 8)) {
     achatState.logEtapes.push({type:'accord', label:'Vendeur accepte', texte:'Offre acceptable', montant});
     saveNegoLog('achats', achatState, 'conclu', montant);
-    document.getElementById('achat-nego-zone').innerHTML = `<div class="result-box fade-in">
-      <div class="result-box-header" style="color:var(--green)">✅ Vendeur accepte votre offre !</div>
-      <div class="result-box-body"><button class="btn btn-primary btn-sm" onclick="achatAccepte(${montant})" id="btn-accept-achat">Confirmer à ${fmtVal(montant)}</button></div>
-    </div>`;
+    document.getElementById('achat-nego-zone').innerHTML = '<div class="result-box fade-in"><div class="result-box-header" style="color:var(--green)">✅ Vendeur accepte votre offre !</div><div class="result-box-body"><button class="btn btn-primary btn-sm" onclick="achatAccepte('+montant+')" id="btn-accept-achat">Confirmer à '+fmtVal(montant)+'</button></div></div>';
     return;
   }
 
   achatState.derniereContre = montant;
   achatState.round++;
-  achatState.logEtapes.push({type:'vendeur', label:`Contre R${achatState.round}`, texte:'Contre-proposition acheteur', montant});
+  achatState.logEtapes.push({type:'vendeur', label:'Contre R'+achatState.round, texte:'Contre-proposition acheteur', montant});
 
   const ecartPct = (achatState.offreIA - montant) / achatState.offreIA;
   const bonusRound = achatState.round * 0.05;
@@ -2841,10 +2833,7 @@ async function submitAchatReneg() {
   if (Math.random() < probRupture && achatState.round >= 2) {
     achatState.logEtapes.push({type:'rupture', label:'Rupture', texte:'Vendeur se retire', montant:null});
     saveNegoLog('achats', achatState, 'rupture');
-    document.getElementById('achat-nego-zone').innerHTML = `<div class="result-box fade-in">
-      <div class="result-box-header" style="color:var(--red)">💔 Vendeur se retire</div>
-      <div class="result-box-body"><p class="result-message">L'écart est trop important.</p></div>
-    </div>`;
+    document.getElementById('achat-nego-zone').innerHTML = '<div class="result-box fade-in"><div class="result-box-header" style="color:var(--red)">💔 Vendeur se retire</div><div class="result-box-body"><p class="result-message">L\'écart est trop important.</p></div></div>';
     return;
   }
   document.getElementById('achat-nego-zone').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
@@ -2856,7 +2845,7 @@ async function achatAccepte(montant) {
   if (btn) { btn.disabled=true; btn.textContent='⏳...'; }
   const clubNom = document.getElementById('achat-club').value;
   const {player} = achatState;
-  achatState.logEtapes.push({type:'accord', label:'Accord trouvé', texte:`Offre de ${fmtVal(montant)} acceptée, en attente de validation`, montant});
+  achatState.logEtapes.push({type:'accord', label:'Accord trouvé', texte:'Offre de '+fmtVal(montant)+' acceptée, en attente de validation', montant});
   saveNegoLog('achats', achatState, 'en_attente', montant);
 
   SHARED.offres_attente.push({
@@ -2874,12 +2863,7 @@ async function achatAccepte(montant) {
   });
   await saveState(['offres_attente','nego_achats']);
 
-  document.getElementById('achat-nego-zone').innerHTML = `<div class="result-box fade-in">
-    <div class="result-box-header" style="color:var(--yellow)">⏳ Offre en attente de validation</div>
-    <div class="result-box-body">
-      <p class="result-message">L'accord pour ${player.nom} à <strong style="color:var(--green)">${fmtVal(montant)}</strong> est en attente. Rendez-vous dans l'onglet <strong>📋 Offres</strong> pour valider.</p>
-    </div>
-  </div>`;
+  document.getElementById('achat-nego-zone').innerHTML = '<div class="result-box fade-in"><div class="result-box-header" style="color:var(--yellow)">⏳ Offre en attente de validation</div><div class="result-box-body"><p class="result-message">L\'accord pour '+player.nom+' à <strong style="color:var(--green)">'+fmtVal(montant)+'</strong> est en attente. Rendez-vous dans l\'onglet <strong>📋 Offres</strong> pour valider.</p></div></div>';
   if (isViewActive('offres')) renderOffres();
 }
 
@@ -2901,11 +2885,12 @@ function renderMercatoHistorique() {
   const vD = document.getElementById('vente-historique');
   const aD = document.getElementById('achat-historique');
   if (!vD||!aD) return;
-  const row = (v, isVente) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);gap:8px">
-    <div><span style="font-family:var(--font-display);font-weight:700;font-size:14px">${v.joueur}</span>
-    <span style="font-size:11px;color:var(--muted);margin-left:8px">${v.clubDepart}${v.clubArrivee?' → '+v.clubArrivee:''} · ${new Date(v.date).toLocaleDateString('fr-FR')}</span></div>
-    <span style="font-family:var(--font-display);font-weight:700;color:${isVente?'var(--green)':'var(--red)'}">${fmtVal(v.montant)}</span>
-  </div>`;
+  const row = (v, isVente) =>
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);gap:8px">' +
+      '<div><span style="font-family:var(--font-display);font-weight:700;font-size:14px">'+(v.joueur||'')+'</span>' +
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">'+(v.clubDepart||'')+(v.clubArrivee?' → '+v.clubArrivee:'')+' · '+new Date(v.date).toLocaleDateString('fr-FR')+'</span></div>' +
+      '<span style="font-family:var(--font-display);font-weight:700;color:'+(isVente?'var(--green)':'var(--red)')+'">'+fmtVal(v.montant)+'</span>' +
+    '</div>';
   vD.innerHTML = (merc.ventes||[]).length ? [...merc.ventes].reverse().map(v=>row(v,true)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">Aucune vente</div></div>';
   aD.innerHTML = (merc.achats||[]).length ? [...merc.achats].reverse().map(v=>row(v,false)).join('') : '<div class="empty" style="padding:20px"><div class="empty-text">Aucun achat</div></div>';
 }
@@ -2928,39 +2913,40 @@ function renderHistoTab(tab) {
   if (tab==='transferts') {
     const div = document.getElementById('histo-transferts');
     const h = SHARED.historique;
-    div.innerHTML = h.length ? `<table><thead><tr><th>Date</th><th>Joueur</th><th>De</th><th>Vers</th><th>Montant</th><th></th></tr></thead><tbody>`
-      + [...h].reverse().map((t,i)=>`<tr>
-        <td style="color:var(--muted);font-size:12px">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
-        <td><strong style="font-family:var(--font-display);font-weight:700">${t.joueur}</strong></td>
-        <td style="color:var(--muted)">${t.clubDepart}</td>
-        <td style="color:var(--muted)">→ ${t.clubArrivee}</td>
-        <td style="font-family:var(--font-display);font-weight:700;color:var(--green)">${fmtVal(t.montant)}</td>
-        <td><button class="trash-btn" onclick="deleteHisto(${h.length-1-i})">🗑️</button></td>
-      </tr>`).join('') + '</tbody></table>'
-    : '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aucun transfert</div></div>';
+    if (!h.length) { div.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aucun transfert</div></div>'; return; }
+    let rows = '';
+    [...h].reverse().forEach((t,i) => {
+      rows += '<tr>' +
+        '<td style="padding:10px 12px;color:var(--muted);font-size:12px">'+new Date(t.date).toLocaleDateString('fr-FR')+'</td>' +
+        '<td><strong style="font-family:var(--font-display);font-weight:700">'+(t.joueur||'')+'</strong></td>' +
+        '<td style="color:var(--muted)">'+(t.clubDepart||'')+'</td>' +
+        '<td style="color:var(--muted)">→ '+(t.clubArrivee||'')+'</td>' +
+        '<td style="font-family:var(--font-display);font-weight:700;color:var(--green)">'+fmtVal(t.montant)+'</td>' +
+        '<td><button class="trash-btn" onclick="deleteHisto('+(h.length-1-i)+')">🗑️</button></td>' +
+      '</tr>';
+    });
+    div.innerHTML = '<table><thead><tr><th>Date</th><th>Joueur</th><th>De</th><th>Vers</th><th>Montant</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
   } else {
     const arr = tab==='ventes' ? SHARED.nego_ventes : SHARED.nego_achats;
     const div = document.getElementById('histo-'+tab);
-    div.innerHTML = arr.length ? arr.slice().reverse().map((n,i) => {
+    if (!arr.length) { div.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aucune négociation</div></div>'; return; }
+    div.innerHTML = arr.slice().reverse().map((n,i) => {
       const sc = n.statut==='conclu'?'var(--green)':n.statut==='refus'?'var(--red)':'var(--yellow)';
       const sl = n.statut==='conclu'?'✅ Conclu':n.statut==='refus'?'❌ Refusé':'💔 Rupture';
-      const steps = (n.etapes||[]).map(e => {
+      let steps = '';
+      (n.etapes||[]).forEach(e => {
         const ic = e.type==='vendeur'?'💬':e.type==='club'?'🏟️':e.type==='accord'?'✅':'❌';
         const co = e.type==='accord'?'var(--green)':e.type==='rupture'?'var(--red)':'var(--muted)';
-        return `<div class="nego-step"><span class="nego-icon">${ic}</span><span class="nego-label" style="color:var(--muted)">${e.label}</span><span class="nego-text">${e.texte}</span>${e.montant?`<span class="nego-montant" style="color:${co}">${fmtVal(e.montant)}</span>`:''}</div>`;
-      }).join('');
-      return `<div class="histo-nego-item">
-        <div class="histo-nego-header" onclick="toggleNego('nego-${tab}-${i}')">
-          <div><span style="font-family:var(--font-display);font-weight:700;font-size:15px">${n.joueur}</span><span style="font-size:11px;color:var(--muted);margin-left:8px">${new Date(n.date).toLocaleDateString('fr-FR')} · ${n.clubSource||''}</span></div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-family:var(--font-display);font-weight:700;font-size:12px;color:${sc}">${sl}</span>
-            ${n.montantFinal?`<span style="font-family:var(--font-display);font-weight:700;color:var(--green)">${fmtVal(n.montantFinal)}</span>`:''}
-            <span style="color:var(--muted);font-size:12px">▼</span>
-          </div>
-        </div>
-        <div id="nego-${tab}-${i}" class="histo-nego-body">${steps||'<p style="color:var(--muted)">Aucun détail</p>'}</div>
-      </div>`;
-    }).join('') : '<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aucune négociation</div></div>';
+        steps += '<div class="nego-step"><span class="nego-icon">'+ic+'</span><span class="nego-label" style="color:var(--muted)">'+e.label+'</span><span class="nego-text">'+(e.texte||'')+'</span>'+(e.montant?'<span class="nego-montant" style="color:'+co+'">'+fmtVal(e.montant)+'</span>':'')+'</div>';
+      });
+      return '<div class="histo-nego-item">' +
+        '<div class="histo-nego-header" onclick="toggleNego('nego-'+tab+'-'+i+'')">' +
+          '<div><span style="font-family:var(--font-display);font-weight:700;font-size:15px">'+(n.joueur||'')+'</span><span style="font-size:11px;color:var(--muted);margin-left:8px">'+new Date(n.date).toLocaleDateString('fr-FR')+' · '+(n.clubSource||'')+'</span></div>' +
+          '<div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--font-display);font-weight:700;font-size:12px;color:'+sc+'">'+sl+'</span>'+(n.montantFinal?'<span style="font-family:var(--font-display);font-weight:700;color:var(--green)">'+fmtVal(n.montantFinal)+'</span>':'')+'<span style="color:var(--muted);font-size:12px">▼</span></div>' +
+        '</div>' +
+        '<div id="nego-'+tab+'-'+i+'" class="histo-nego-body">'+(steps||'<p style="color:var(--muted)">Aucun détail</p>')+'</div>' +
+      '</div>';
+    }).join('');
   }
 }
 
@@ -3001,13 +2987,17 @@ function searchTotwJoueur(q) {
   if (q.length < 2) { res.innerHTML=''; return; }
   const all = getAllPlayers();
   const hits = all.filter(p => p.nom.toLowerCase().includes(q.toLowerCase()) && !totwPlayers.find(s=>s.nom===p.nom)).slice(0,10);
-  res.innerHTML = hits.map(p => `<div class="search-result-item" onclick="addTotwPlayer(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-    <div style="display:flex;align-items:center;gap:8px">
-      ${playerPhoto(p.nom, 30, p.poste)}
-      <div><div class="sr-name${p._custom?' custom':''}">${p.nom}${p._custom?' ⭐':''}</div><div class="sr-meta"><span class="pos-tag ${posCls(p.poste)}" style="font-size:10px;padding:1px 4px">${p.poste}</span> · ${p._club}</div></div>
-    </div>
-    <span class="ovr-badge ${ovrCls(p.overall)}" style="width:28px;height:28px;font-size:13px">${p.overall}</span>
-  </div>`).join('');
+  res.innerHTML = hits.map(p => {
+    const pj = JSON.stringify(p).replace(/"/g,'&quot;');
+    return '<div class="search-result-item" onclick="addTotwPlayer('+pj+')">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        playerPhoto(p.nom, 30, p.poste) +
+        '<div><div class="sr-name'+(p._custom?' custom':'')+'">'+(p.nom||'')+(p._custom?' ⭐':'')+'</div>' +
+        '<div class="sr-meta"><span class="pos-tag '+posCls(p.poste)+'" style="font-size:10px;padding:1px 4px">'+(p.poste||'')+'</span> · '+(p._club||'')+'</div></div>' +
+      '</div>' +
+      '<span class="ovr-badge '+ovrCls(p.overall)+'" style="width:28px;height:28px;font-size:13px">'+(p.overall||0)+'</span>' +
+    '</div>';
+  }).join('');
 }
 
 function addTotwPlayer(p) {
@@ -3026,13 +3016,18 @@ function removeTotwPlayer(nom) {
 function renderTotwSelected() {
   const div = document.getElementById('totw-selected');
   document.getElementById('totw-count').textContent = totwPlayers.length;
-  div.innerHTML = totwPlayers.length ? totwPlayers.map(p=>`
-    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid ${p._custom?'var(--yellow)':'var(--border)'};border-radius:20px;padding:3px 8px 3px 6px">
-      <span class="ovr-badge ${ovrCls(p.overall)}" style="width:22px;height:22px;font-size:11px">${p.overall}</span>
-      <span style="font-family:var(--font-display);font-weight:700;font-size:13px;color:${p._custom?'var(--yellow)':'var(--text)'}">${p.nom}</span>
-      <button onclick="removeTotwPlayer('${p.nom.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--muted);font-size:13px">✕</button>
-    </div>`).join('')
-  : '<span style="color:var(--muted);font-size:13px">Aucun joueur sélectionné</span>';
+  if (!totwPlayers.length) {
+    div.innerHTML = '<span style="color:var(--muted);font-size:13px">Aucun joueur sélectionné</span>';
+    return;
+  }
+  div.innerHTML = totwPlayers.map(p => {
+    const safeName = p.nom.replace(/'/g,"\\'");
+    return '<div style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid '+(p._custom?'var(--yellow)':'var(--border)')+';border-radius:20px;padding:3px 8px 3px 6px">' +
+      '<span class="ovr-badge '+ovrCls(p.overall)+'" style="width:22px;height:22px;font-size:11px">'+p.overall+'</span>' +
+      '<span style="font-family:var(--font-display);font-weight:700;font-size:13px;color:'+(p._custom?'var(--yellow)':'var(--text)')+'">'+p.nom+'</span>' +
+      '<button onclick="removeTotwPlayer(\''+safeName+'\')" style="background:none;border:none;color:var(--muted);font-size:13px">✕</button>' +
+    '</div>';
+  }).join('');
 }
 
 async function confirmerTOTW() {
@@ -3073,35 +3068,35 @@ function renderTOTW() {
   if (!data.length) { div.innerHTML='<div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Aucune TOTW créée</div></div>'; return; }
   const bySaison = {};
   data.forEach(t => { if (!bySaison[t.saison]) bySaison[t.saison]=[]; bySaison[t.saison].push(t); });
-  div.innerHTML = Object.keys(bySaison).sort((a,b)=>b-a).map(s => {
+  let html = '';
+  Object.keys(bySaison).sort((a,b)=>b-a).forEach(s => {
     const totws = bySaison[s].sort((a,b)=>a.journee-b.journee);
-    return `<div style="margin-bottom:24px">
-      <h3 style="font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px">Saison ${s} <span style="font-size:13px;color:var(--muted);font-weight:400">${totws.length}/17</span></h3>
-      <div class="totw-grid">${totws.map(t=>`
-        <div class="totw-card" onclick="toggleTOTWCard('totw-${t.saison}-${t.journee}')">
-          <div class="totw-card-header">
-            <div class="totw-card-label">TOTW</div>
-            <div class="totw-card-j">J${t.journee}</div>
-            <div class="totw-card-date">${new Date(t.date).toLocaleDateString('fr-FR')}</div>
-          </div>
-          <div id="totw-${t.saison}-${t.journee}" class="totw-card-body">
-            ${t.joueurs.map(j=>`<div class="totw-player-row">
-              <span class="ovr-badge ${ovrCls(j.overall)}" style="width:24px;height:24px;font-size:11px;flex-shrink:0">${j.overall}</span>
-              <span style="font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:${j._custom?'var(--yellow)':'var(--text)'}">${j.nom}${j._custom?' ⭐':''}</span>
-              <span style="font-size:11px;color:var(--muted)">${j.poste}</span>
-            </div>`).join('')}
-            <button class="trash-btn" style="margin-top:8px" onclick="event.stopPropagation();deleteTOTW(${t.saison},${t.journee})">🗑️ Supprimer</button>
-          </div>
-        </div>`).join('')}
-      </div>
-    </div>`;
-  }).join('');
+    html += '<div style="margin-bottom:24px">';
+    html += '<h3 style="font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px">Saison '+s+' <span style="font-size:13px;color:var(--muted);font-weight:400">'+totws.length+'/17</span></h3>';
+    html += '<div class="totw-grid">';
+    totws.forEach(t => {
+      html += '<div class="totw-card" onclick="toggleTOTWCard('totw-'+t.saison+'-'+t.journee+'')">';
+      html += '<div class="totw-card-header"><div class="totw-card-label">TOTW</div><div class="totw-card-j">J'+t.journee+'</div><div class="totw-card-date">'+new Date(t.date).toLocaleDateString('fr-FR')+'</div></div>';
+      html += '<div id="totw-'+t.saison+'-'+t.journee+'" class="totw-card-body">';
+      t.joueurs.forEach(j => {
+        html += '<div class="totw-player-row">';
+        html += '<span class="ovr-badge '+ovrCls(j.overall)+'" style="width:24px;height:24px;font-size:11px;flex-shrink:0">'+j.overall+'</span>';
+        html += '<span style="font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:'+(j._custom?'var(--yellow)':'var(--text)')+'">'+j.nom+(j._custom?' ⭐':'')+'</span>';
+        html += '<span style="font-size:11px;color:var(--muted)">'+j.poste+'</span>';
+        html += '</div>';
+      });
+      html += '<button class="trash-btn" style="margin-top:8px" onclick="event.stopPropagation();deleteTOTW('+t.saison+','+t.journee+')">🗑️ Supprimer</button>';
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  div.innerHTML = html;
 }
 
 function toggleTOTWCard(id) { const el=document.getElementById(id); if(el) el.style.display=el.style.display==='block'?'none':'block'; }
 
 async function deleteTOTW(saison, journee) {
-  if (!confirm(`Supprimer TOTW J${journee} S${saison} ?`)) return;
+  if (!confirm('Supprimer TOTW J'+journee+' S'+saison+' ?')) return;
   SHARED.totw = SHARED.totw.filter(t=>!(t.saison===saison && t.journee===journee));
   await saveState(['totw']);
   renderTOTW();
@@ -3133,11 +3128,11 @@ function renderWheelSegments() {
   if (!div) return;
   const segs = SHARED.wheel_segments || [];
   cnt.textContent = segs.length + ' segment' + (segs.length>1?'s':'');
-  div.innerHTML = segs.length ? segs.map((s,i)=>`
-    <div class="segment-item" style="border-left-color:${s.color}">
-      <span>${s.label}</span>
-      <button class="segment-remove" onclick="removeSegment(${i})">✕</button>
-    </div>`).join('')
+  div.innerHTML = segs.length ? segs.map((s,i)=>
+    '<div class="segment-item" style="border-left-color:'+s.color+'">' +
+      '<span>'+s.label+'</span>' +
+      '<button class="segment-remove" onclick="removeSegment('+i+')">✕</button>' +
+    '</div>').join('')
   : '<p style="color:var(--muted);font-size:13px;text-align:center;padding:10px">Aucun segment</p>';
 }
 
@@ -3163,7 +3158,7 @@ function drawWheel(angle) {
     ctx.strokeStyle='#0a0a0a'; ctx.lineWidth=2; ctx.stroke();
     ctx.save(); ctx.translate(cx,cy); ctx.rotate(s+sa/2);
     ctx.textAlign='right'; ctx.fillStyle='#fff';
-    ctx.font=`bold ${Math.min(15,240/n)}px Barlow Condensed`;
+    ctx.font='bold '+Math.min(15,240/n)+'px Barlow Condensed';
     ctx.shadowColor='rgba(0,0,0,.8)'; ctx.shadowBlur=4;
     const lbl=segs[i].label; ctx.fillText(lbl.length>16?lbl.slice(0,16)+'…':lbl, r-12, 5);
     ctx.restore();
@@ -3218,7 +3213,7 @@ function ouvrirAjouterStat(type) {
   currentStatType = type; statSelectedPlayer = null;
   currentStatSaison = parseInt(document.getElementById('classement-saison')?.value)||2;
   const isB = type==='buteurs';
-  document.getElementById('modal-stat-title').textContent = isB ? `⚽ Ajouter un buteur — S${currentStatSaison}` : `🎯 Ajouter un passeur — S${currentStatSaison}`;
+  document.getElementById('modal-stat-title').textContent = isB ? '⚽ Ajouter un buteur — S'+currentStatSaison : '🎯 Ajouter un passeur — S'+currentStatSaison;
   document.getElementById('modal-stat-header').style.borderBottomColor = isB ? 'var(--red)' : 'var(--accent)';
   document.getElementById('stat-search').value = '';
   document.getElementById('stat-results').innerHTML = '';
@@ -3232,10 +3227,13 @@ function searchStatJoueur(q) {
   const all = getAllPlayers();
   const dbHits = DB.filter(p=>p.nom.toLowerCase().includes(q.toLowerCase()) && !all.find(a=>a.nom===p.nom)).slice(0,5).map(p=>({...p, overall:p.ovr, potentiel:p.pot, _club:'Libre', _type:'libre'}));
   const hits = [...all.filter(p=>p.nom.toLowerCase().includes(q.toLowerCase())), ...dbHits].slice(0,10);
-  res.innerHTML = hits.map(p=>`<div class="search-result-item" onclick="selectStatJoueur(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-    <div><div class="sr-name${p._custom?' custom':''}">${p.nom}${p._custom?' ⭐':''}</div><div class="sr-meta">${p.poste} · ${p._club}</div></div>
-    <span class="ovr-badge ${ovrCls(p.overall)}" style="width:28px;height:28px;font-size:13px">${p.overall}</span>
-  </div>`).join('');
+  res.innerHTML = hits.map(p => {
+    const pj = JSON.stringify(p).replace(/"/g,'&quot;');
+    return '<div class="search-result-item" onclick="selectStatJoueur('+pj+')">' +
+      '<div><div class="sr-name'+(p._custom?' custom':'')+'">'+(p.nom||'')+(p._custom?' ⭐':'')+'</div><div class="sr-meta">'+(p.poste||'')+' · '+(p._club||'')+'</div></div>' +
+      '<span class="ovr-badge '+ovrCls(p.overall)+'" style="width:28px;height:28px;font-size:13px">'+(p.overall||0)+'</span>' +
+    '</div>';
+  }).join('');
 }
 
 function selectStatJoueur(p) {
@@ -3244,7 +3242,7 @@ function selectStatJoueur(p) {
   document.getElementById('stat-results').innerHTML = '';
   document.getElementById('stat-selected').style.display = 'block';
   document.getElementById('stat-selected-name').textContent = p.nom + (p._custom?' ⭐':'');
-  document.getElementById('stat-selected-info').textContent = `${p.poste} · ${p._club}`;
+  document.getElementById('stat-selected-info').textContent = (p.poste||'') + ' · ' + (p._club||'');
 }
 
 async function confirmerStat() {
@@ -3292,24 +3290,24 @@ function renderStatTable(type, saison) {
   if (!stats.length) { div.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Aucun joueur</div></div>'; return; }
   const medals=['🥇','🥈','🥉'];
   const color = type==='buteurs'?'var(--red)':'var(--accent)';
-  div.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">
-    ${stats.map((s,i)=>{
-      const logo = logoStore[s.club];
-      return `<div class="stat-row">
-        <span class="stat-rank">${medals[i]||(i+1)}</span>
-        <div class="stat-player">
-          ${logo?`<img src="${logo}" class="stat-logo" alt="">`:`<div class="stat-logo-empty">🏟️</div>`}
-          <div><div class="stat-name${s.custom?' custom':''}">${s.nom}${s.custom?' ⭐':''}</div><div class="stat-club">${s.club}</div></div>
-        </div>
-        <div class="stat-count-ctrl">
-          <button class="ovr-btn" onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},-1)">−</button>
-          <span class="stat-count" style="color:${color}">${s.count}</span>
-          <button class="ovr-btn" onclick="modifierStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison},1)">+</button>
-        </div>
-        <button class="trash-btn" onclick="supprimerStat('${type}','${s.nom.replace(/'/g,"\\'")}',${s.saison})">🗑️</button>
-      </div>`;
-    }).join('')}
-  </div>`;
+  let rows = '';
+  stats.forEach((s,i) => {
+    const logo = logoStore[s.club];
+    const logoHtml = logo ? '<img src="'+logo+'" class="stat-logo" alt="">' : '<div class="stat-logo-empty">🏟️</div>';
+    rows += '<div class="stat-row">' +
+      '<span class="stat-rank">'+(medals[i]||(i+1))+'</span>' +
+      '<div class="stat-player">' + logoHtml +
+        '<div><div class="stat-name'+(s.custom?' custom':'')+'">'+(s.nom||'')+(s.custom?' ⭐':'')+'</div><div class="stat-club">'+(s.club||'')+'</div></div>' +
+      '</div>' +
+      '<div class="stat-count-ctrl">' +
+        '<button class="ovr-btn" onclick="modifierStat(\''+type+'\',\''+s.nom.replace(/'/g,"\\'")+'\',' + s.saison + ',-1)">−</button>' +
+        '<span class="stat-count" style="color:'+color+'">'+s.count+'</span>' +
+        '<button class="ovr-btn" onclick="modifierStat(\''+type+'\',\''+s.nom.replace(/'/g,"\\'")+'\',' + s.saison + ',1)">+</button>' +
+      '</div>' +
+      '<button class="trash-btn" onclick="supprimerStat(\''+type+'\',\''+s.nom.replace(/'/g,"\\'")+'\',' + s.saison + ')">🗑️</button>' +
+    '</div>';
+  });
+  div.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">' + rows + '</div>';
 }
 
 // ═══════════════ FIN DE SAISON ═══════════════
@@ -3324,31 +3322,31 @@ function ouvrirFinSaison() {
   const body = document.getElementById('fin-saison-body');
   if (oaList.length) {
     document.getElementById('fin-saison-title').textContent = '🏁 Options d\'achat à traiter';
-    body.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Ces joueurs sont en prêt avec option d'achat :</p>
-      ${oaList.map((j,i)=>`<div class="oa-row" id="oa-${i}">
-        <div><strong style="font-family:var(--font-display);font-weight:700">${j.nom}</strong><span style="font-size:11px;color:var(--muted);margin-left:8px">${j.clubSource} → ${j.clubPret} · ${fmtVal(j.montant)}</span></div>
-        <div class="oa-btns" id="oa-btns-${i}">
-          <button class="btn btn-primary btn-sm" style="font-size:11px" onclick="traiterOA(${i},'lever',${JSON.stringify(j).replace(/"/g,'&quot;')})">✅ Lever</button>
-          <button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)" onclick="traiterOA(${i},'repartir',${JSON.stringify(j).replace(/"/g,'&quot;')})">↩️ Repartir</button>
-          <button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--yellow);border-color:var(--yellow)" onclick="traiterOA(${i},'attente',${JSON.stringify(j).replace(/"/g,'&quot;')})">⏳ Attente</button>
-        </div>
-      </div>`).join('')}
-      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;display:flex;gap:10px;justify-content:center">
-        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-fin-saison')">Annuler</button>
-        <button class="btn btn-danger btn-sm" onclick="executerFinSaison()">🏁 Terminer quand même</button>
-      </div>`;
+    body.innerHTML = '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Ces joueurs sont en prêt avec option d\'achat :</p>' +
+      oaList.map((j,i) => '<div class="oa-row" id="oa-'+i+'">' +
+        '<div><strong style="font-family:var(--font-display);font-weight:700">'+j.nom+'</strong><span style="font-size:11px;color:var(--muted);margin-left:8px">'+j.clubSource+' → '+j.clubPret+' · '+fmtVal(j.montant)+'</span></div>' +
+        '<div class="oa-btns" id="oa-btns-'+i+'">' +
+          '<button class="btn btn-primary btn-sm" style="font-size:11px" onclick="traiterOA('+i+',\'lever\','+JSON.stringify(j).replace(/"/g,'&quot;')+')">✅ Lever</button>' +
+          '<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--red);border-color:var(--red)" onclick="traiterOA('+i+',\'repartir\','+JSON.stringify(j).replace(/"/g,'&quot;')+')">↩️ Repartir</button>' +
+          '<button class="btn btn-secondary btn-sm" style="font-size:11px;color:var(--yellow);border-color:var(--yellow)" onclick="traiterOA('+i+',\'attente\','+JSON.stringify(j).replace(/"/g,'&quot;')+')">⏳ Attente</button>' +
+        '</div>' +
+      '</div>').join('') +
+      '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;display:flex;gap:10px;justify-content:center">' +
+        '<button class="btn btn-secondary btn-sm" onclick="closeModal(\'modal-fin-saison\')">Annuler</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="executerFinSaison()">🏁 Terminer quand même</button>' +
+      '</div>';
   } else {
     document.getElementById('fin-saison-title').textContent = '🏁 Fin de saison';
-    body.innerHTML = `<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:12px">
-      <p>🔄 Prêts sans OA → retour club d'origine</p>
-      <p>📉 Tous les contrats −1 an</p>
-      <p style="color:var(--red)">⚠️ Joueurs à 0 an → marqués en rouge</p>
-      <p>📊 Stats buteurs/passeurs → remises à zéro</p>
-    </div>
-    <div style="display:flex;gap:10px;justify-content:center">
-      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-fin-saison')">Annuler</button>
-      <button class="btn btn-danger btn-sm" onclick="executerFinSaison()">🏁 Confirmer</button>
-    </div>`;
+    body.innerHTML = '<div style="background:var(--surface2);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:12px">' +
+      '<p>🔄 Prêts sans OA → retour club d\'origine</p>' +
+      '<p>📉 Tous les contrats −1 an</p>' +
+      '<p style="color:var(--red)">⚠️ Joueurs à 0 an → marqués en rouge</p>' +
+      '<p>📊 Stats buteurs/passeurs → remises à zéro</p>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;justify-content:center">' +
+        '<button class="btn btn-secondary btn-sm" onclick="closeModal(\'modal-fin-saison\')">Annuler</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="executerFinSaison()">🏁 Confirmer</button>' +
+      '</div>';
   }
   openModal('modal-fin-saison');
 }
