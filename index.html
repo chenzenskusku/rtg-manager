@@ -2568,9 +2568,19 @@ async function genererOffreVente(valRef, prixDemande, isReneg) {
     }
 
     // OFFRE
-    const offreMontant = parsed.montant ? roundTo025(parsed.montant) : roundTo025(prixDemande * 0.75);
-    if (isReneg && offreMontant < venteState.offreIA) parsed.montant = roundTo025(venteState.offreIA * 1.03);
-    else parsed.montant = offreMontant;
+    let offreMontant = parsed.montant ? roundTo025(parsed.montant) : roundTo025(prixDemande * 0.75);
+    if (isReneg) {
+      // Force offer to go UP in reneg - at least 3%, max 12%
+      if (offreMontant <= venteState.offreIA) {
+        const hausse = 0.04 + Math.random() * 0.08;
+        offreMontant = roundTo025(venteState.offreIA * (1 + hausse));
+      }
+      // Must stay below seller's asking price
+      if (offreMontant >= prixDemande) {
+        offreMontant = roundTo025(prixDemande * 0.97);
+      }
+    }
+    parsed.montant = offreMontant;
     venteState.offreIA = parsed.montant;
     venteState.round++;
     venteState.logEtapes.push({type:'club', label:'Offre R'+venteState.round, texte:parsed.message||'Offre reçue', montant:parsed.montant});
@@ -2764,8 +2774,17 @@ async function genererOffreAchat() {
     }
 
     parsed.montant = parsed.montant ? roundTo025(parsed.montant) : roundTo025(calcValeur(player.ovr||player.overall, player.age, player.pot||player.potentiel) * 1.1);
-    if (round > 0 && parsed.montant > achatState.offreIA) parsed.montant = roundTo025(achatState.offreIA * 0.97);
-    if (round > 0 && parsed.montant <= achatState.derniereContre) parsed.montant = roundTo025(achatState.derniereContre * 1.03);
+    if (achatState.round > 0) {
+      // Force price to go down in reneg - at least 3%, max 15%
+      if (parsed.montant >= achatState.offreIA) {
+        const reduction = 0.04 + Math.random() * 0.08; // 4-12% reduction
+        parsed.montant = roundTo025(achatState.offreIA * (1 - reduction));
+      }
+      // Must stay above buyer's last offer
+      if (parsed.montant <= achatState.derniereContre) {
+        parsed.montant = roundTo025(achatState.derniereContre * 1.05);
+      }
+    }
     achatState.offreIA = parsed.montant;
     achatState.round++;
     achatState.logEtapes.push({type:'club', label:'Demande R'+round, texte:parsed.message, montant:parsed.montant});
