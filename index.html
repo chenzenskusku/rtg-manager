@@ -3067,7 +3067,20 @@ async function confirmerTOTW() {
   const saison = parseInt(document.getElementById('totw-saison').value);
   const journee = parseInt(document.getElementById('totw-journee').value);
   if (!journee) { alert('Aucune journée disponible.'); return; }
-  SHARED.totw.push({saison, journee, date:new Date().toISOString(), joueurs:[...totwPlayers]});
+  // Snapshot ovrAvant BEFORE applying +1
+  const joueursSave = totwPlayers.map(tp => {
+    let ovrAvant = tp.overall;
+    for (const c of Object.keys(CLUBS_J)) {
+      const p = CLUBS_J[c].effectif.find(j => j.nom === tp.nom);
+      if (p) { ovrAvant = p.overall; break; }
+    }
+    for (const c of Object.keys(CLUBS_IA)) {
+      const p = CLUBS_IA[c].effectif.find(j => j.nom === tp.nom);
+      if (p) { ovrAvant = p.overall; break; }
+    }
+    return {...tp, ovrAvant};
+  });
+  SHARED.totw.push({saison, journee, date:new Date().toISOString(), joueurs: joueursSave});
 
   // +1 OVR pour chaque joueur TOTW (sauf si OVR >= potentiel)
   const toSaveIA = new Set(), toSaveJ = new Set();
@@ -3112,10 +3125,10 @@ function renderTOTW() {
       out += "<div class='totw-card-header'><div class='totw-card-label'>TOTW</div><div class='totw-card-j'>J"+t.journee+"</div><div class='totw-card-date'>"+new Date(t.date).toLocaleDateString("fr-FR")+"</div></div>";
       out += "<div id='" + cardId + "' class='totw-card-body'>";
       t.joueurs.forEach(j => {
-        const ovrAvant = j.ovrAvant != null ? j.ovrAvant : (j.overall > 0 ? j.overall - 1 : j.overall);
-        const ovrApres = j.overall;
+        const ovrAvant = j.ovrAvant != null ? j.ovrAvant : j.overall;
         const maxPot = j.potentiel || j.pot || 99;
         const isMax = ovrAvant >= maxPot;
+        const ovrApres = isMax ? ovrAvant : ovrAvant + 1;
         const posBg = posColor(j.poste);
         const apresStr = isMax
           ? "<span style='color:var(--red);font-weight:900;font-size:15px'>✗</span>"
