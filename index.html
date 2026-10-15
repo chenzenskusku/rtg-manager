@@ -1017,6 +1017,14 @@ function fmtBudget(b) {
   if (b >= 1e3) return Math.round(b/1e3) + 'K€';
   return b + '€';
 }
+function posColor(pos) {
+  if (!pos) return '#555';
+  if (pos==='G') return '#e67e22';
+  if (['DD','DC','DG'].includes(pos)) return '#c0a000';
+  if (['MDC','MC','MG','MD','MOC'].includes(pos)) return '#27ae60';
+  if (['AG','AD','BU'].includes(pos)) return '#2980b9';
+  return '#555';
+}
 function ovrCls(o) { return o>=82?'ovr-high':o>=75?'ovr-mid':'ovr-low'; }
 function posCls(pos) {
   if (!pos) return '';
@@ -1688,16 +1696,16 @@ function openModal(id) {
 
 // ═══════════════ SIDEBAR ═══════════════
 function renderSidebars() {
-  // IA
+  const sortedIA = Object.keys(CLUBS_IA).sort((a,b) => a.localeCompare(b, 'fr'));
+  const sortedJ = Object.keys(CLUBS_J).sort((a,b) => a.localeCompare(b, 'fr'));
   const listIA = document.getElementById('list-clubs-ia');
-  listIA.innerHTML = Object.keys(CLUBS_IA).length === 0
+  listIA.innerHTML = sortedIA.length === 0
     ? '<div class="empty" style="padding:20px"><div class="empty-text">Aucun club IA</div></div>'
-    : Object.keys(CLUBS_IA).map(name => sidebarItem(name,'ia')).join('');
-  // Joueurs
+    : sortedIA.map(name => sidebarItem(name,'ia')).join('');
   const listJ = document.getElementById('list-clubs-joueurs');
-  listJ.innerHTML = Object.keys(CLUBS_J).length === 0
+  listJ.innerHTML = sortedJ.length === 0
     ? '<div class="empty" style="padding:20px"><div class="empty-text">Aucun club joueur</div></div>'
-    : Object.keys(CLUBS_J).map(name => sidebarItem(name,'joueur')).join('');
+    : sortedJ.map(name => sidebarItem(name,'joueur')).join('');
 }
 
 function sidebarItem(name, type) {
@@ -2482,9 +2490,9 @@ async function genererOffreVente(valRef, prixDemande, isReneg) {
   const ratio = prixDemande / valRef;
 
   // Probabilité de refus croissante selon l'écart au prix réel
-  // ratio=1 → 5% de refus, ratio=1.5 → 40%, ratio=2 → 75%, ratio=3+ → 98%
+  // ratio=1.0 → 0%, ratio=1.3 → 10%, ratio=1.5 → 25%, ratio=2.0 → 55%, ratio=3+ → 90%
   if (!isReneg) {
-    const probRefus = Math.min(0.98, Math.pow(Math.max(0, ratio - 1), 1.3) * 0.85);
+    const probRefus = Math.min(0.90, Math.pow(Math.max(0, ratio - 1.1), 1.8) * 0.70);
     if (Math.random() < probRefus) {
       const msgs = [
         `Le prix demandé (${fmtVal(prixDemande)}) est bien au-dessus de la valeur du joueur (${fmtVal(valRef)}).`,
@@ -2595,7 +2603,7 @@ async function genererOffreVente(valRef, prixDemande, isReneg) {
         <p style="font-size:12px;color:var(--muted)">Demandé : <strong>${fmtVal(venteState.prixBase)}</strong> · Offre : <strong style="color:var(--green)">${fmtVal(parsed.montant)}</strong></p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="accepterVente(${parsed.montant})" id="btn-accept-vente">✅ Accepter ${fmtVal(parsed.montant)}</button>
-          ${venteState.round < 3 ? `<button class="btn btn-secondary btn-sm" onclick="showVenteReneg()">💬 Renégocier</button>` : ''}
+          ${venteState.round < 3 ? '<button class="btn btn-secondary btn-sm" onclick="showVenteReneg()">💬 Renégocier</button>' : ''}
           <button class="btn btn-secondary btn-sm" onclick="refuserVente()">❌ Refuser</button>
         </div>
         <div id="vente-reneg-zone" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -2635,8 +2643,8 @@ async function submitVenteReneg() {
 
   // Check rupture probability
   const ecart = (montant - venteState.offreIA) / venteState.offreIA;
-  const bonusRound = venteState.round * 0.05;
-  const probRupture = Math.min(0.7, Math.max(0, ecart - 0.15) * 1.2 + bonusRound);
+  const bonusRound = venteState.round * 0.03;
+  const probRupture = Math.min(0.5, Math.max(0, ecart - 0.25) * 1.0 + bonusRound);
   if (Math.random() < probRupture && venteState.round >= 3) {
     venteState.logEtapes.push({type:'rupture', label:'Rupture', texte:`Rupture après ${venteState.round} rounds`, montant:null});
     saveNegoLog('ventes', venteState, 'rupture');
@@ -2690,10 +2698,13 @@ function searchAchatJoueur(q) {
   res.innerHTML = hits.map(p => {
     const inJ = Object.keys(CLUBS_J).some(c => CLUBS_J[c].effectif.find(j => j.nom===p.nom && !j._pretFrom));
     const inIA = Object.keys(CLUBS_IA).find(c => CLUBS_IA[c].effectif.find(j => j.nom===p.nom));
-    if (inJ) return `<div class="search-result-item sr-unavailable">
-      <div><div class="sr-name">${p.nom}</div><span style="color:var(--red);font-size:11px">Appartient à un club joueur</span></div>
-      <span class="ovr-badge ${ovrCls(p.ovr)}" style="width:28px;height:28px;font-size:13px">${p.ovr}</span>
-    </div>`;
+    if (inJ) {
+      const clubJ = Object.keys(CLUBS_J).find(c => CLUBS_J[c].effectif.find(j => j.nom===p.nom && !j._pretFrom));
+      return `<div class="search-result-item sr-unavailable">
+        <div><div class="sr-name">${p.nom}</div><span style="color:var(--red);font-size:11px">⛔ ${clubJ || 'Club joueur'}</span></div>
+        <span class="ovr-badge ${ovrCls(p.ovr)}" style="width:28px;height:28px;font-size:13px">${p.ovr}</span>
+      </div>`;
+    }
     const clubLabel = inIA ? `Club IA : ${inIA}` : 'Joueur libre';
     return `<div class="search-result-item" onclick="selectAchatJoueur(${JSON.stringify({...p,_clubIA:inIA||null}).replace(/"/g,'&quot;')})">
       <div><div class="sr-name">${p.nom}</div><span class="sr-meta">${p.poste} · ${p.age} ans · ${fmtVal(calcValeur(p.ovr,p.age,p.pot))} · <span style="color:var(--accent)">${clubLabel}</span></span></div>
@@ -2803,7 +2814,7 @@ async function genererOffreAchat() {
         <p style="font-size:13px;font-weight:600;margin-bottom:8px">Votre réponse :</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="achatAccepte(${parsed.montant})" id="btn-accept-achat">✅ Accepter ${fmtVal(parsed.montant)}</button>
-          ${achatState.round < 3 ? `<button class="btn btn-secondary btn-sm" onclick="showAchatReneg()">💬 Contre-offre</button>` : ''}
+          ${achatState.round < 3 ? '<button class="btn btn-secondary btn-sm" onclick="showAchatReneg()">💬 Contre-offre</button>' : ''}
           <button class="btn btn-secondary btn-sm" onclick="achatRefuser()">❌ Se retirer</button>
         </div>
         <div id="achat-reneg-zone" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
@@ -2835,7 +2846,9 @@ async function submitAchatReneg() {
 
   // Check if vendor would auto-accept
   const ecart = (achatState.offreIA - montant) / achatState.offreIA;
-  if (Math.random() < Math.max(0, 1 - ecart * 8)) {
+  // Auto-accept if counter is within 5% of current ask, or if very close to market value
+  const ecartFromVal = Math.abs(montant - valRef) / valRef;
+  if (ecart < 0.05 || ecartFromVal < 0.05 || Math.random() < Math.max(0, 0.8 - ecart * 5)) {
     achatState.logEtapes.push({type:'accord', label:'Vendeur accepte', texte:'Offre acceptable', montant});
     saveNegoLog('achats', achatState, 'conclu', montant);
     document.getElementById('achat-nego-zone').innerHTML = '<div class="result-box fade-in"><div class="result-box-header" style="color:var(--green)">✅ Vendeur accepte votre offre !</div><div class="result-box-body"><button class="btn btn-primary btn-sm" onclick="achatAccepte('+montant+')" id="btn-accept-achat">Confirmer à '+fmtVal(montant)+'</button></div></div>';
@@ -3099,10 +3112,18 @@ function renderTOTW() {
       out += "<div class='totw-card-header'><div class='totw-card-label'>TOTW</div><div class='totw-card-j'>J"+t.journee+"</div><div class='totw-card-date'>"+new Date(t.date).toLocaleDateString("fr-FR")+"</div></div>";
       out += "<div id='" + cardId + "' class='totw-card-body'>";
       t.joueurs.forEach(j => {
-        out += "<div class='totw-player-row'>";
-        out += "<span class='ovr-badge "+ovrCls(j.overall)+"' style='width:24px;height:24px;font-size:11px;flex-shrink:0'>"+j.overall+"</span>";
-        out += "<span style='font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:"+(j._custom?"var(--yellow)":"var(--text)")+"'>"+(j.nom||""+(j._custom?" ⭐":"")+"</span>");
-        out += "<span style='font-size:11px;color:var(--muted)'>"+j.poste+"</span>";
+        const ovrAvant = j.ovrAvant != null ? j.ovrAvant : (j.overall > 0 ? j.overall - 1 : j.overall);
+        const ovrApres = j.overall;
+        const maxPot = j.potentiel || j.pot || 99;
+        const isMax = ovrAvant >= maxPot;
+        const posBg = posColor(j.poste);
+        const apresStr = isMax
+          ? "<span style='color:var(--red);font-weight:900;font-size:15px'>✗</span>"
+          : "<span style='color:#4ade80;font-weight:700'>"+ovrApres+"</span>";
+        out += "<div class='totw-player-row' style='gap:8px;align-items:center'>";
+        out += "<span style='background:"+posBg+";color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;min-width:32px;text-align:center;flex-shrink:0'>"+j.poste+"</span>";
+        out += "<span style='font-family:var(--font-display);font-weight:700;font-size:13px;flex:1;color:"+(j._custom?"var(--yellow)":"var(--text)")+"'>"+(j.nom||"")+(j._custom?" ⭐":"")+"</span>";
+        out += "<span style='font-size:12px;color:var(--muted);white-space:nowrap'>"+ovrAvant+" → "+apresStr+"</span>";
         out += "</div>";
       });
       out += "<button class='trash-btn' style='margin-top:8px' data-s='" + t.saison + "' data-j='" + t.journee + "' onclick='event.stopPropagation();deleteTOTW(+this.dataset.s,+this.dataset.j)'>🗑️ Supprimer</button>";
