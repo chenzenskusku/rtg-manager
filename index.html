@@ -822,8 +822,8 @@ select.search-input{cursor:pointer}
     <div class="modal-body" style="overflow-y:auto">
       <div class="form-row">
         <div><label class="form-label">Saison</label>
-          <select id="totw-saison" class="search-input" onchange="updateTotwJournees()">
-            <option value="1">Saison 1</option><option value="2" selected>Saison 2</option>
+          <select id="totw-saison" class="search-input" onchange="updateTotwJournees()" id="totw-saison">
+            <option value="1">Saison 1</option><option value="2">Saison 2</option>
             <option value="3">Saison 3</option><option value="4">Saison 4</option><option value="5">Saison 5</option>
           </select>
         </div>
@@ -2998,6 +2998,10 @@ function ouvrirCreerTOTW() {
   totwPlayers = [];
   document.getElementById('totw-search').value = '';
   document.getElementById('totw-results').innerHTML = '';
+  // Auto-select saison courante
+  const curSaison = (SHARED.current_saison || 1);
+  const saisonSel = document.getElementById('totw-saison');
+  saisonSel.value = curSaison;
   updateTotwJournees();
   renderTotwSelected();
   openModal('modal-totw');
@@ -3008,10 +3012,16 @@ function updateTotwJournees() {
   const existing = (SHARED.totw||[]).filter(t=>t.saison===saison).map(t=>t.journee);
   const sel = document.getElementById('totw-journee');
   sel.innerHTML = '';
-  for (let j=1;j<=17;j++) {
+  for (let j=1;j<=14;j++) {
     if (!existing.includes(j)) { const o=document.createElement('option'); o.value=j; o.textContent='J'+j; sel.appendChild(o); }
   }
-  if (!sel.options.length) sel.innerHTML = '<option value="">Toutes créées</option>';
+  if (!sel.options.length) { sel.innerHTML = '<option value="">Toutes créées</option>'; return; }
+  // Auto-select dernière journée existante + 1
+  const lastJ = existing.length ? Math.max(...existing) : 0;
+  const nextJ = lastJ + 1;
+  for (const opt of sel.options) {
+    if (parseInt(opt.value) === nextJ) { sel.value = nextJ; break; }
+  }
 }
 
 function searchTotwJoueur(q) {
@@ -3117,7 +3127,7 @@ function renderTOTW() {
   Object.keys(bySaison).sort((a,b)=>b-a).forEach(s => {
     const totws = bySaison[s].sort((a,b)=>a.journee-b.journee);
     out += "<div style='margin-bottom:24px'>";
-    out += "<h3 style='font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px'>Saison " + s + " <span style='font-size:13px;color:var(--muted);font-weight:400'>"+totws.length+"/17</span></h3>";
+    out += "<h3 style='font-family:var(--font-display);font-weight:900;font-size:20px;letter-spacing:1px;color:var(--yellow);margin-bottom:12px'>Saison " + s + " <span style='font-size:13px;color:var(--muted);font-weight:400'>"+totws.length+"/14</span></h3>";
     out += "<div class='totw-grid'>";
     totws.forEach(t => {
       const cardId = "totw-"+t.saison+"-"+t.journee;
